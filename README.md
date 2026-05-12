@@ -2,15 +2,20 @@
 
 Claudia is a command-line tool that uses DeepSeek's language models to implement code changes in your git repository based on natural language task descriptions.
 
-## Usage
+## 1. Install
+```bash
+uvx tool install claudia-agent
+```
 
+## 2. Configure
 ```bash
 export DEEPSEEK_API_KEY=your_key_here
+```
 
-uvx claudia "Add email verification to the login form"
+## 3. Use
 
-# Interactive mode
-uvx claudia
+```bash
+claudia
 ```
 
 ## Why?
