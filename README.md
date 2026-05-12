@@ -4,7 +4,7 @@ Claudia is a command-line tool that uses DeepSeek's language models to implement
 
 ## 1. Install
 ```bash
-uvx tool install claudia-agent
+pip install claudia-agent
 ```
 
 ## 2. Configure
