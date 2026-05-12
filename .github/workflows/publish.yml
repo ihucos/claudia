@@ -24,7 +24,7 @@ jobs:
       - name: Compute CalVer version
         id: version
         run: |
-          VERSION="$(date -u +'%Y.%-m.%-d').${{ github.run_number }}"
+          VERSION="1.${{ github.run_number }}.0"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Publishing version $VERSION"
 
