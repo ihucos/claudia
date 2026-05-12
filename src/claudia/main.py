@@ -161,7 +161,7 @@ def interactive_mode():
     from prompt_toolkit import prompt
     from prompt_toolkit.history import FileHistory
 
-    history = FileHistory("~/.klaus_history")
+    history = FileHistory(os.path.expanduser("~/.klaus_history"))
 
     tqdm.write("Hi, specify your desired code changes (return with alt-enter)")
     while True:
