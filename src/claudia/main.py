@@ -74,7 +74,9 @@ class LineHandler:
                 f.write(content)
 
     def preview_changes(self):
-        tmpdir = tempfile.mkdtemp()
+        tmpdir = tempfile.mkdtemp(
+            suffix="  .",  # for better UX
+        )
         self.write_changes(tmpdir)
         subprocess.call(
             [
@@ -83,6 +85,7 @@ class LineHandler:
                 "--no-index",
                 ".",
                 tmpdir,
+                "--diff-filter=AM",
             ]
         )
 
@@ -94,11 +97,11 @@ class LineHandler:
         if self.pbar:
             self.pbar.close()
 
-        self.write_changes(".")
         if self.contents:
             self.preview_changes()
-            tqdm.write("Press enter to write the files...")
+            tqdm.write("\nPress enter to write the files...")
             input("")
+            self.write_changes(".")
 
             tqdm.write(f"Files changed: {', '.join(self.contents.keys())}")
         else:
