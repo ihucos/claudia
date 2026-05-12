@@ -6,6 +6,7 @@ Claudia is a command-line tool that uses DeepSeek's language models to implement
 
 ```bash
 export DEEPSEEK_API_KEY=your_key_here
+
 uvx claudia "Add email verification to the login form"
 
 # Interactive mode

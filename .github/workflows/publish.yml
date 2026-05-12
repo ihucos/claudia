@@ -1,0 +1,40 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Compute CalVer version
+        id: version
+        run: |
+          VERSION="$(date -u +'%Y.%-m.%-d').${{ github.run_number }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version $VERSION"
+
+      - name: Patch pyproject.toml version
+        run: |
+          sed -i 's/^version = .*/version = "${{ steps.version.outputs.version }}"/' pyproject.toml
+          grep '^version' pyproject.toml
+
+      - name: Build distribution
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
