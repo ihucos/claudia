@@ -33,9 +33,9 @@ wheels = [
 ]
 
 [[package]]
-name = "claudia"
-version = "0.1.0"
-source = { editable = "." }
+name = "claudia-agent"
+version = "0.0.0"
+source = { virtual = "." }
 dependencies = [
     { name = "llm" },
     { name = "prompt-toolkit" },
