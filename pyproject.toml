@@ -1,0 +1,17 @@
+[project]
+name = "claudia"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Irae Hueck Costa", email = "mail@irae.me" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+claudia = "claudia:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
