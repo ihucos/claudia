@@ -52,7 +52,7 @@ class LineHandler:
 
         if self.current_file:
             self.contents[self.current_file].append(line)
-            self.pbar.update(1)
+            self.pbar.update()
 
     def finish_current_file(self):
         """Close the current progress bar and reset state."""
@@ -178,6 +178,12 @@ def interactive_mode():
 
 
 def main():
+    if not os.environ.get("DEEPSEEK_API_KEY"):
+        print(
+            "claudia error: Please set the environment variable DEEPSEEK_API_KEY to your DeepSeek API key.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if len(sys.argv) > 1:
         task = " ".join(sys.argv[1:])
         implement(task)
