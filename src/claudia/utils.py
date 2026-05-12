@@ -1,6 +1,7 @@
 from tqdm import tqdm
 import functools
 import os
+import sys
 import subprocess
 from io import StringIO
 
@@ -29,6 +30,9 @@ def trim_code_blocks_magic(fname, content):
     if content_lines and content_lines[0].startswith("```"):
         content = "\n".join(content_lines[1:])
 
+    if not content.endswith("\n"):
+        content += "\n"
+
     return content
 
 
@@ -43,24 +47,37 @@ def remove_filename_prefix(filename):
 def get_project_map():
     """Generate a map of project files and their tags using ctags."""
     files = {}
-    all_git_files = (
-        subprocess.check_output(
-            [
-                "git",
-                "ls-files",
-                "--modified",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-            ],
+    try:
+        all_git_files = (
+            subprocess.check_output(
+                [
+                    "git",
+                    "ls-files",
+                    "--modified",
+                    "--cached",
+                    "--others",
+                    "--exclude-standard",
+                ],
+            )
+            .decode("utf-8")
+            .splitlines()
         )
-        .decode("utf-8")
-        .splitlines()
-    )
+    except subprocess.CalledProcessError as exc:
+        print("claudia error:", exc)
+        sys.exit(1)
 
-    ctags = subprocess.check_output(
-        ["ctags", "-f-"] + all_git_files, stderr=subprocess.DEVNULL
-    ).decode("utf-8")
+    # Ctags fails if a file does not exist
+    for file in list(all_git_files):
+        if not os.path.exists(file):
+            all_git_files.remove(file)
+
+    try:
+        ctags = subprocess.check_output(
+            ["ctags", "-f-"] + all_git_files, stderr=subprocess.DEVNULL
+        ).decode("utf-8")
+    except subprocess.CalledProcessError as exc:
+        print("claudia error:", exc)
+        sys.exit(1)
 
     for line in ctags.splitlines():
         tag, filename, *rest = line.split("\t")

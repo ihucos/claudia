@@ -83,7 +83,6 @@ class LineHandler:
                 "--no-index",
                 ".",
                 tmpdir,
-                "--diff-filter=AM",
             ]
         )
 
@@ -133,7 +132,7 @@ def get_context_files(task):
 def implement(task):
     """Main implementation flow: get context, generate code, apply changes."""
     files = get_context_files(task)
-    fragments = files_to_fragments(sorted(files))
+    fragments = utils.files_to_fragments(sorted(files))
 
     response = model.prompt(
         constants.PROMPT_IMPLEMENT_TEMPLATE.format(
