@@ -10,8 +10,12 @@ requires-python = ">=3.13"
 dependencies = [
     "llm>=0.31",
     "prompt-toolkit>=3.0.52",
-    "tqdm>=4.67.3",
+    "questionary>=2.1.1",
+    "rich>=15.0.0",
 ]
 
 [project.scripts]
 claudia = "claudia:main"
+
+[tool.uv]
+package = true

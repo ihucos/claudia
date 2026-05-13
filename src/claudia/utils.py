@@ -1,4 +1,4 @@
-from tqdm import tqdm
+from rich.console import Console
 import functools
 import os
 import sys
@@ -7,10 +7,12 @@ from io import StringIO
 
 from .constants import DUMMY_DIR, CODEBLOCK, ESCAPED_CODEBLOCK
 
+console = Console()
+
 
 def debug(text):
     if os.environ.get("CLAUDIA_DEBUG") in ["1", "true"]:
-        tqdm.write(text)
+        console.print(text, style="dim")
 
 
 def escape_codeblocks(text):
@@ -63,7 +65,7 @@ def get_project_map():
             .splitlines()
         )
     except subprocess.CalledProcessError as exc:
-        print("claudia error:", exc)
+        console.print("claudia error:", exc, style="bold red")
         sys.exit(1)
 
     # Ctags fails if a file does not exist
@@ -76,7 +78,7 @@ def get_project_map():
             ["ctags", "-f-"] + all_git_files, stderr=subprocess.DEVNULL
         ).decode("utf-8")
     except subprocess.CalledProcessError as exc:
-        print("claudia error:", exc)
+        console.print("claudia error:", exc, style="bold red")
         sys.exit(1)
 
     for line in ctags.splitlines():

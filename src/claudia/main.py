@@ -5,7 +5,9 @@ import tempfile
 from collections import defaultdict
 import subprocess
 
-from tqdm import tqdm
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+import questionary
 
 from . import utils
 from . import constants
@@ -14,6 +16,8 @@ from . import models
 
 model = models.DeepSeekChat("deepseek-v4-flash")
 
+console = Console()
+
 
 class LineHandler:
     """Handle streaming lines from LLM output, collecting file changes."""
@@ -21,7 +25,8 @@ class LineHandler:
     def __init__(self):
         self.current_file = None
         self.contents = defaultdict(list)
-        self.pbar = None
+        self.progress = None
+        self.task_id = None
 
     def get_total_lines(self, fname):
         try:
@@ -42,23 +47,31 @@ class LineHandler:
             if self.current_file:
                 self.finish_current_file()
             self.current_file = fname
-            self.pbar = tqdm(
-                desc=fname,
-                unit=" lines",
-                position=0,
-                total=self.get_total_lines(fname),
+            
+            if self.progress is None:
+                self.progress = Progress(
+                    TextColumn("[progress.description]{task.description}"),
+                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                    transient=True,
+                )
+                self.progress.start()
+            
+            total = self.get_total_lines(fname)
+            self.task_id = self.progress.add_task(
+                f"[cyan]{fname}[/cyan]",
+                total=total if total > 0 else None
             )
             return
 
-        if self.current_file:
+        if self.current_file and self.progress and self.task_id is not None:
             self.contents[self.current_file].append(line)
-            self.pbar.update()
+            self.progress.update(self.task_id, advance=1)
 
     def finish_current_file(self):
         """Close the current progress bar and reset state."""
-        if self.pbar:
-            self.pbar.close()
-            self.pbar = None
+        if self.task_id is not None and self.progress:
+            self.progress.update(self.task_id, visible=False)
+            self.task_id = None
         self.current_file = None
 
     def write_changes(self, dir):
@@ -67,6 +80,7 @@ class LineHandler:
             fname = os.path.join(dir, fname)
             if os.sep in fname:
                 os.makedirs(os.path.dirname(fname), exist_ok=True)
+            assert ".." not in fname
             with open(fname, "w") as f:
                 content = "\n".join(lines)
                 content = utils.unescape_codeblocks(content)
@@ -94,18 +108,19 @@ class LineHandler:
             return False
 
         # Finish any remaining progress bar
-        if self.pbar:
-            self.pbar.close()
+        if self.progress:
+            self.progress.stop()
+            self.progress = None
 
         if self.contents:
             self.preview_changes()
-            tqdm.write("\nPress enter to write the files...")
-            input("")
-            self.write_changes(".")
-
-            tqdm.write(f"Files changed: {', '.join(self.contents.keys())}")
+            if questionary.confirm("\nWrite the files?", default=True).ask():
+                self.write_changes(".")
+                console.print(f"Files changed: {', '.join(self.contents.keys())}")
+            else:
+                console.print("Changes discarded")
         else:
-            tqdm.write("No changes")
+            console.print("No changes")
 
 
 def get_context_files(task):
@@ -118,17 +133,18 @@ def get_context_files(task):
 
     response = model.prompt(prompt)
 
-    for chunk in tqdm(
-        response,
-        desc="Context files",
-        unit="tokens",
-        delay=5,
-    ):
-        pass
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        progress.add_task("[cyan]Getting context files...", total=None)
+        for chunk in response:
+            pass
 
     files = constants.FILE_PATH_PATTERN.findall(response.text())
     fs_files = [utils.remove_filename_prefix(f) for f in files]
-    tqdm.write(f"Context: {', '.join(fs_files)}")
+    console.print(f"Context: {', '.join(fs_files)}")
     return files
 
 
@@ -163,7 +179,7 @@ def interactive_mode():
 
     history = FileHistory(os.path.expanduser("~/.klaus_history"))
 
-    tqdm.write("Hi, specify your desired code changes (return with alt-enter)")
+    console.print("Hi, specify your desired code changes (return with alt-enter)")
     while True:
         try:
             user_input = prompt(
@@ -179,9 +195,9 @@ def interactive_mode():
 
 def main():
     if not os.environ.get("DEEPSEEK_API_KEY"):
-        print(
+        console.print(
             "claudia error: Please set the environment variable DEEPSEEK_API_KEY to your DeepSeek API key.",
-            file=sys.stderr,
+            style="bold red",
         )
         sys.exit(1)
     if len(sys.argv) > 1:
