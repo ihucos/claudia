@@ -6,7 +6,7 @@ from collections import defaultdict
 import subprocess
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 import questionary
 
 from . import utils
@@ -51,6 +51,7 @@ class LineHandler:
             if self.progress is None:
                 self.progress = Progress(
                     TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
                     TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
                     transient=True,
                 )
