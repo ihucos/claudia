@@ -185,7 +185,7 @@ devbox.create_if_not_exists()
 branch = f"claudia-{os.path.basename(workdir)}"
 
 
-def create_synced_worktree(workdir):
+def create_worktree(workdir):
     with spinner("Creating worktree..."):
         subprocess.run(
             [
@@ -200,32 +200,6 @@ def create_synced_worktree(workdir):
             check=True,
             capture_output=True,
         )
-        # out = subprocess.run(
-        #     ["git", "status", "--porcelain", "--short"],
-        #     check=True,
-        #     capture_output=True,
-        #     text=True,
-        # ).stdout
-        # for line in out.splitlines():
-        #     status, path = line.split(None, 1)
-        #     source_path = os.path.join(git_dir, path)
-        #     target_path = os.path.join(workdir, path)
-        #     if status in ("M", "A"):
-        #         shutil.copyfile(source_path, target_path)
-        #         debug(f"shutil.copyfile({source_path}, {target_path})")
-        #     else:
-        #         debug("skipping git status line: " + line)
-
-        # subprocess.run(["git", "stash", "-u"], check=True, capture_output=True)
-        # subprocess.run(
-        #     ["git", "stash", "apply", "--index"], check=True, capture_output=True
-        # )
-        # subprocess.run(
-        #     ["git", "stash", "apply", "--index"],
-        #     check=True,
-        #     cwd=workdir,
-        #     capture_output=True,
-        # )
 
 
 class Toolbox(llm.Toolbox):
@@ -272,85 +246,69 @@ class Toolbox(llm.Toolbox):
             )
 
 
+from rich import box
+
+
 def user_cmd_changes():
-    spinner.stop()
-    # 1. Move the spinner OUTSIDE the pager. Run it while fetching data.
-    commits_raw = subprocess.run(
-        ["git", "log", "--oneline", f"HEAD...{branch}"],
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.strip()
+    with spinner("Checking changes..."):
+        current_branch = subprocess.run(
+            ["git", "branch", "--show-current"], text=True, capture_output=True
+        ).stdout.strip()
 
-    # Force color on stat so we get the green '+' and red '-' graphs automatically!
-    stat_raw = subprocess.run(
-        ["git", "diff", "--stat", "--color=always", f"HEAD...{branch}"],
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.strip()
+        commits = subprocess.run(
+            ["git", "log", "--oneline", "--color=always", f"HEAD...{branch}"],
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.strip()
 
-    diff_raw = subprocess.run(
-        ["git", "diff", "--color=always", f"HEAD...{branch}"],
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.strip()
+        # Force color on stat so we get the green '+' and red '-' graphs automatically!
+        stat_raw = subprocess.run(
+            ["git", "diff", "--stat", "--color=always", f"HEAD...{branch}"],
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.strip()
 
-    # 2. Format the Commits section cleanly
-    commit_text = Text()
-    if commits_raw:
-        for line in commits_raw.splitlines():
-            if " " in line:
-                sha, msg = line.split(" ", 1)
-                # Style the Git SHA yellow/gold (classic git style) and the message normally
-                commit_text.append(f" {sha} ", style="bold yellow")
-                commit_text.append(f"{msg}\n", style="none")
-    else:
-        commit_text = Text("No new commits.", style="italic dim")
+        diff_raw = subprocess.run(
+            ["git", "diff", "--color=always", f"HEAD...{branch}"],
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.strip()
 
-    # 3. Format the File Stats
-    stat_text = (
-        Text.from_ansi(stat_raw)
-        if stat_raw
-        else Text("No files changed.", style="italic dim")
-    )
-
-    # 4. Format the full code Diff
-    diff_text = (
-        Text.from_ansi(diff_raw)
-        if diff_raw
-        else Text("No code changes.", style="italic dim")
-    )
-
-    # 5. Build your pristine layout inside the pager
-    with console.pager(styles=True):
-        # Header overview row (Commits on the left, Stat Graph on the right if space allows)
+    with spinner, console.pager(styles=True):
         console.print(
             Panel(
-                commit_text,
-                title="✨ Commits",
+                f"{branch} -> {current_branch}",
+                title="Merge",
+                border_style="green",
+                title_align="left",
+                padding=(1, 2),
+            )
+        )
+        console.print(
+            Panel(
+                Text.from_ansi(commits),
+                title="Commits",
                 border_style="yellow",
                 title_align="left",
                 padding=(1, 2),
             )
         )
-
         console.print(
             Panel(
-                stat_text,
-                title="📊 Changed Files",
+                Text.from_ansi(stat_raw),
+                title="Files",
                 border_style="cyan",
                 title_align="left",
                 padding=(1, 2),
             )
         )
-
-        # Large body for the actual diff
         console.print(
             Panel(
-                diff_text,
-                title="🔍 Code Diff",
+                Text.from_ansi(diff_raw),
+                title="Diff",
                 border_style="magenta",
                 title_align="left",
                 padding=(1, 1),
@@ -372,7 +330,7 @@ SYSTEM_PROMPT = """
 
 def main():
     try:
-        create_synced_worktree(workdir)
+        create_worktree(workdir)
         with spinner:
             console.print(f"[cyan]workdir: {workdir}[/cyan]")
         spinner("Clouding...")
