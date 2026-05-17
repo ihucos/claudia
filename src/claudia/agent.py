@@ -247,9 +247,6 @@ class Toolbox(llm.Toolbox):
             )
 
 
-from rich import box
-
-
 def user_cmd_changes():
     with spinner("Checking changes..."):
         current_branch = subprocess.run(
@@ -319,11 +316,11 @@ def user_cmd_changes():
         console.print()
 
         apply_changes = Confirm.ask(
-            f"[bold green]Merge {branch} into {current_branch}?[/bold green]",
+            f"[green]Merge {branch} into {current_branch}?[/green]",
             default=False,
         )
         if apply_changes:
-            subprocess.run(["git", "merge", branch], check=True, cwd=workdir)
+            subprocess.run(["git", "merge", branch], check=True, cwd=git_dir)
             with spinner:
                 console.print("[green]Merged[/green]")
         else:
