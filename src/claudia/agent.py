@@ -181,8 +181,8 @@ devbox = DevBox(
 devbox.create_if_not_exists()
 
 
-def create_workdir(workdir):
-    with spinner("Creating workdir..."):
+def create_synced_worktree(workdir):
+    with spinner("Creating worktree..."):
         subprocess.run(
             [
                 "git",
@@ -266,7 +266,7 @@ SYSTEM_PROMPT = """
 
 def main():
     try:
-        create_workdir(workdir)
+        create_synced_worktree(workdir)
         with spinner:
             console.print(f"[cyan] workdir: {workdir}[/cyan]")
         spinner("Clouding...")
