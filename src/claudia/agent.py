@@ -32,7 +32,7 @@ workdirs = os.path.realpath(".claudia/workdirs")
 os.makedirs(workdirs, exist_ok=True)
 workdir = tempfile.mkdtemp(dir=workdirs, prefix="")
 
-DEBUG = True
+DEBUG = False
 
 
 def before_call(tool, tool_call):
