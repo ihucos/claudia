@@ -322,6 +322,13 @@ def user_cmd_changes():
             f"[bold green]Merge {branch} into {current_branch}?[/bold green]",
             default=False,
         )
+        if apply_changes:
+            subprocess.run(["git", "merge", branch], check=True, cwd=workdir)
+            with spinner:
+                console.print("[green]Merged[/green]")
+        else:
+            with spinner:
+                console.print("[red]Not Merged[/red]")
 
 
 SYSTEM_PROMPT = """
