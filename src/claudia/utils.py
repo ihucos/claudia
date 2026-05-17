@@ -46,7 +46,7 @@ def remove_filename_prefix(filename):
 
 
 @functools.cache
-def get_project_map():
+def get_project_map(prepend_dummy_dir=True):
     """Generate a map of project files and their tags using ctags."""
     files = {}
     try:
@@ -89,7 +89,10 @@ def get_project_map():
 
     files_map = StringIO()
     for filename, tags in files.items():
-        files_map.write(f"{DUMMY_DIR}/{filename}: ")
+        if prepend_dummy_dir:
+            files_map.write(f"{DUMMY_DIR}/{filename}: ")
+        else:
+            files_map.write(f"{filename}: ")
         files_map.write(", ".join(tags))
         files_map.write("\n")
 

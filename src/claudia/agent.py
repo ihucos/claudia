@@ -22,6 +22,35 @@ console = Console()
 workspace = tempfile.mkdtemp(dir=os.path.expanduser("~/.claudia-workspace"))
 
 
+class Spinner:
+    def __init__(self):
+        self.progress = Progress(
+            SpinnerColumn(), TextColumn("{task.description}"), transient=True
+        )
+        self.task_id = self.progress.add_task("Spinning...", total=None)
+
+    def stop(self):
+        self.progress.stop()
+
+    def start(self):
+        self.progress.start()
+
+    def __call__(self, text):
+        self.progress.update(self.task_id, description=text)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            return False
+        self.progress.start()
+
+    def __enter__(self):
+        self.progress.stop()
+
+
+spinner = Spinner()
+spinner.start()
+
+
 def run(command):
     process = subprocess.Popen(
         command,
@@ -42,11 +71,9 @@ def run(command):
     return "".join(output), returncode
 
 
-class Toolbox(llm.Toolbox):
-    def __init__(self, status_cb):
-        self.status_cb = status_cb
-
-    def _create_workdir(self):
+def create_workdir():
+    spinner("Creating workdir...")
+    try:
         subprocess.run(
             [
                 "git",
@@ -58,11 +85,27 @@ class Toolbox(llm.Toolbox):
                 "new-branch-" + str(time.time()),
             ],
             check=True,
+            capture_output=True,
         )
-        subprocess.run(["git", "stash", "-u"], check=True)
-        subprocess.run(["git", "stash", "apply", "--index"], check=True)
-        subprocess.run(["git", "stash", "apply", "--index"], check=True, cwd=workspace)
+        subprocess.run(["git", "stash", "-u"], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "stash", "apply", "--index"], check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "stash", "apply", "--index"],
+            check=True,
+            cwd=workspace,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        spinner.stop()
+        console.print("stodout:", exc.stdout)
+        console.print("stderr:", exc.stderr)
+        console.print("claudia error:", exc, style="bold red")
+        sys.exit(1)
 
+
+class Toolbox(llm.Toolbox):
     def write_file(self, filename: str, content: str):
         with open(filename, "w") as f:
             f.write(content)
@@ -76,7 +119,7 @@ class Toolbox(llm.Toolbox):
 
     def run(self, shell: str, step_description: str):
         try:
-            self.status_cb(step_description)
+            spinner(step_description)
             out = run(
                 [
                     "limactl",
@@ -108,36 +151,35 @@ SYSTEM_PROMPT = """
 
 
 def main():
+    create_workdir()
+    spinner("Clouding...")
     conversation = model.conversation()
     history = FileHistory(os.path.expanduser("~/.klaus_history"))
-    console.print("[cyan]Claudia> Hello, here to help.")
+    with spinner:
+        console.print("[cyan]Claudia> Hello, here to help.")
     while True:
-        user_input = prompt(
-            "You> ",
-            history=history,
-            prompt_continuation="... ",
-        )
-
-        progress = Progress(
-            SpinnerColumn(), TextColumn("{task.description}"), transient=True
-        )
-        update_progress = lambda x: progress.update(task_id, description=x)
-        task_id = progress.add_task("Spinning...", total=None)
-        toolbox = Toolbox(update_progress)
-        toolbox._create_workdir()
-        update_progress("Spinning...")
-        progress.start()
+        with spinner:
+            user_input = prompt(
+                "You> ",
+                history=history,
+                prompt_continuation="... ",
+            )
 
         response = conversation.chain(
             user_input,
-            tools=[toolbox],
-            system=SYSTEM_PROMPT.format(project_map=utils.get_project_map()),
+            tools=[Toolbox()],
+            system=SYSTEM_PROMPT.format(
+                project_map=utils.get_project_map(prepend_dummy_dir=False)
+            ),
         )
 
         for token in response:
             pass
             # console.print(f"[cyan]{token}", end="")
-        progress.stop()
 
         last_response = response._responses[-1]
-        console.print(f"[cyan]Claudia> {last_response.text()}", end="")
+        with spinner:
+            if not last_response.text():
+                console.print("[cyan]Claudia> ...")
+            else:
+                console.print(f"[cyan]Claudia> {last_response.text()}", end="")
