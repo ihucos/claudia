@@ -1,16 +1,16 @@
 import os
 import subprocess
 import sys
-import time
 import tempfile
 
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.console import Console
+from rich.text import Text
+from rich.panel import Panel
 import llm
 import hashlib
-import shutil
 import atexit
 
 from . import utils
@@ -175,12 +175,14 @@ class DevBox:
 
 
 devbox = DevBox(
-    "here",
+    "main",
     "alpine",
     extra_docker_args=["--volume", f"{workdirs}:{workdirs}"],
     workdir=workdir,
 )
 devbox.create_if_not_exists()
+
+branch = f"claudia-{os.path.basename(workdir)}"
 
 
 def create_synced_worktree(workdir):
@@ -193,26 +195,26 @@ def create_synced_worktree(workdir):
                 "-f",
                 workdir,
                 "-b",
-                f"claudia-{os.path.basename(workdir)}",
+                branch,
             ],
             check=True,
             capture_output=True,
         )
-        out = subprocess.run(
-            ["git", "status", "--porcelain", "--short"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        for line in out.splitlines():
-            status, path = line.split(None, 1)
-            source_path = os.path.join(git_dir, path)
-            target_path = os.path.join(workdir, path)
-            if status in ("M", "A"):
-                shutil.copyfile(source_path, target_path)
-                debug(f"shutil.copyfile({source_path}, {target_path})")
-            else:
-                debug("skipping git status line: " + line)
+        # out = subprocess.run(
+        #     ["git", "status", "--porcelain", "--short"],
+        #     check=True,
+        #     capture_output=True,
+        #     text=True,
+        # ).stdout
+        # for line in out.splitlines():
+        #     status, path = line.split(None, 1)
+        #     source_path = os.path.join(git_dir, path)
+        #     target_path = os.path.join(workdir, path)
+        #     if status in ("M", "A"):
+        #         shutil.copyfile(source_path, target_path)
+        #         debug(f"shutil.copyfile({source_path}, {target_path})")
+        #     else:
+        #         debug("skipping git status line: " + line)
 
         # subprocess.run(["git", "stash", "-u"], check=True, capture_output=True)
         # subprocess.run(
@@ -252,12 +254,116 @@ class Toolbox(llm.Toolbox):
                 }
             return ret
 
+    def commit(self, commit_msg: str, add_files: list[str]):
+        with spinner:
+            console.print(f"[green]committing: {commit_msg.splitlines()[0]}[/green]")
+        with spinner("Committing changes..."):
+            subprocess.run(
+                ["git", "add"] + add_files,
+                check=True,
+                cwd=workdir,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", commit_msg],
+                check=True,
+                cwd=workdir,
+                capture_output=True,
+            )
+
+
+def user_cmd_changes():
+    spinner.stop()
+    # 1. Move the spinner OUTSIDE the pager. Run it while fetching data.
+    commits_raw = subprocess.run(
+        ["git", "log", "--oneline", f"HEAD...{branch}"],
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+
+    # Force color on stat so we get the green '+' and red '-' graphs automatically!
+    stat_raw = subprocess.run(
+        ["git", "diff", "--stat", "--color=always", f"HEAD...{branch}"],
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+
+    diff_raw = subprocess.run(
+        ["git", "diff", "--color=always", f"HEAD...{branch}"],
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+
+    # 2. Format the Commits section cleanly
+    commit_text = Text()
+    if commits_raw:
+        for line in commits_raw.splitlines():
+            if " " in line:
+                sha, msg = line.split(" ", 1)
+                # Style the Git SHA yellow/gold (classic git style) and the message normally
+                commit_text.append(f" {sha} ", style="bold yellow")
+                commit_text.append(f"{msg}\n", style="none")
+    else:
+        commit_text = Text("No new commits.", style="italic dim")
+
+    # 3. Format the File Stats
+    stat_text = (
+        Text.from_ansi(stat_raw)
+        if stat_raw
+        else Text("No files changed.", style="italic dim")
+    )
+
+    # 4. Format the full code Diff
+    diff_text = (
+        Text.from_ansi(diff_raw)
+        if diff_raw
+        else Text("No code changes.", style="italic dim")
+    )
+
+    # 5. Build your pristine layout inside the pager
+    with console.pager(styles=True):
+        # Header overview row (Commits on the left, Stat Graph on the right if space allows)
+        console.print(
+            Panel(
+                commit_text,
+                title="✨ Commits",
+                border_style="yellow",
+                title_align="left",
+                padding=(1, 2),
+            )
+        )
+
+        console.print(
+            Panel(
+                stat_text,
+                title="📊 Changed Files",
+                border_style="cyan",
+                title_align="left",
+                padding=(1, 2),
+            )
+        )
+
+        # Large body for the actual diff
+        console.print(
+            Panel(
+                diff_text,
+                title="🔍 Code Diff",
+                border_style="magenta",
+                title_align="left",
+                padding=(1, 1),
+            )
+        )
+
 
 SYSTEM_PROMPT = """
 # Notes
 - You are an coding agent.
 - Use the tools.
 - Install any software you need to accomplish the task.
+- Commit when your have completed a single, logical unit of work.
 
 # Application structure
 {project_map}
@@ -268,7 +374,7 @@ def main():
     try:
         create_synced_worktree(workdir)
         with spinner:
-            console.print(f"[cyan] workdir: {workdir}[/cyan]")
+            console.print(f"[cyan]workdir: {workdir}[/cyan]")
         spinner("Clouding...")
         conversation = model.conversation()
         history = FileHistory(os.path.expanduser("~/.klaus_history"))
@@ -285,6 +391,9 @@ def main():
             if user_input == "breakpoint":
                 with spinner:
                     breakpoint()
+                continue
+            if user_input == "changes":
+                user_cmd_changes()
                 continue
 
             response = conversation.chain(
