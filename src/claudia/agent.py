@@ -19,6 +19,8 @@ from . import models
 model = models.DeepSeekChat("deepseek-v4-flash")
 model.supports_tools = True
 
+current_dir = os.getcwd()
+
 console = Console()
 
 workspace = tempfile.mkdtemp(dir=os.path.expanduser("~/.claudia-workspace"))
@@ -56,7 +58,6 @@ class ExceptionHandler:
                 console.print("claudia error:", exc, style="bold red")
                 sys.exit(1)
             except Exception as exc:
-                spinner.stop()
                 console.print("claudia error:", exc, style="bold red")
                 sys.exit(1)
 
@@ -93,13 +94,15 @@ spinner.start()
 
 
 class DevBox:
-    def __init__(self, project_name, base_image):
+    def __init__(self, project_name, base_image, *, extra_docker_args, workdir):
         self.project_name = project_name
         self.base_image = base_image
+        self.extra_docker_args = extra_docker_args
+        self.workdir = workdir
 
     @property
     def name(self):
-        return f"claudia-{self.project_name}-{self.base_image}"
+        return f"claudia-{self.project_name}-{self.base_image}-{hash(tuple(self.extra_docker_args))}"
 
     def create_if_not_exists(self):
         with spinner("Checking devbox..."):
@@ -127,6 +130,9 @@ class DevBox:
                 [
                     "docker",
                     "run",
+                ]
+                + list(self.extra_docker_args)
+                + [
                     "-dti",
                     "--name",
                     self.name,
@@ -139,13 +145,11 @@ class DevBox:
     def run(self, cmd):
         try:
             r = subprocess.run(
-                ["docker", "exec", self.name] + cmd,
+                ["docker", "exec", "--workdir", self.workdir, self.name] + cmd,
                 check=True,
                 capture_output=True,
             )
         except subprocess.CalledProcessError as exc:
-            # if exc.returncode in DOCKER_EXIT_CODES:
-            #     raise
             return {
                 "stdout": exc.stdout.decode(),
                 "stderr": exc.stderr.decode(),
@@ -159,11 +163,16 @@ class DevBox:
             }
 
 
-devbox = DevBox("here", "alpine")
+devbox = DevBox(
+    "here",
+    "alpine",
+    extra_docker_args=["--volume", f"current_dir:{workspace}"],
+    workdir=current_dir,
+)
 devbox.create_if_not_exists()
 
 
-def create_workdir():
+def create_workdir(workspace):
     with spinner("Creating workdir..."):
         subprocess.run(
             [
@@ -192,21 +201,29 @@ def create_workdir():
 
 class Toolbox(llm.Toolbox):
     def write_file(self, filename: str, content: str, step_description: str):
-        with spinner(step_description, die_on_error=False):
-            with open(filename, "w") as f:
-                f.write(content)
+        with spinner(step_description):
+            try:
+                with open(filename, "w") as f:
+                    f.write(content)
+            except OSError as exc:
+                return {"error": str(exc)}
 
     def read_file(self, filename: str, step_description: str):
-        with spinner(step_description, die_on_error=False):
-            with open(filename, "r") as f:
-                return f.read()
-
-    def print(self, message: str):
-        print(message)
+        with spinner(step_description):
+            try:
+                with open(filename, "r") as f:
+                    return f.read()
+            except OSError as exc:
+                return {"error": str(exc)}
 
     def run(self, shell: str, step_description: str):
         with spinner(step_description):
-            return devbox.run(["/bin/sh", "-c", shell])
+            ret = devbox.run(["/bin/sh", "-c", shell])
+            if len(ret["stderr"]) + len(ret["stdout"]) > 512:
+                return {
+                    "error": "Output too long (you get 512 chars max)",
+                }
+            return ret
 
 
 SYSTEM_PROMPT = """
@@ -221,7 +238,7 @@ SYSTEM_PROMPT = """
 
 
 def main():
-    create_workdir()
+    create_workdir(workspace)
     spinner("Clouding...")
     conversation = model.conversation()
     history = FileHistory(os.path.expanduser("~/.klaus_history"))
