@@ -274,7 +274,6 @@ def main():
         history = FileHistory(os.path.expanduser("~/.klaus_history"))
         with spinner:
             console.print("[cyan]Claudia> Hello, how can I help.")
-        sys.exit(0)
         while True:
             with spinner:
                 user_input = prompt(
