@@ -23,15 +23,17 @@ console = Console()
 
 workspace = tempfile.mkdtemp(dir=os.path.expanduser("~/.claudia-workspace"))
 
+DEBUG = False
+
 
 def before_call(tool, tool_call):
-    if tool.name == "Toolbox_run":
+    if DEBUG:
         with spinner:
             print(f"{tool.name}: {tool_call.arguments}")
 
 
 def after_call(tool, tool_call, tool_result):
-    if tool.name == "Toolbox_run":
+    if DEBUG:
         with spinner:
             print(f"-> {tool_result.output}")
 
@@ -72,9 +74,10 @@ class Spinner:
     def start(self):
         self.progress.start()
 
-    def __call__(self, text):
+    def __call__(self, text, die_on_error=True):
         self.progress.update(self.task_id, description=f"[cyan]{text}[/cyan]")
-        return ExceptionHandler()
+        if die_on_error:
+            return ExceptionHandler()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
@@ -149,7 +152,11 @@ class DevBox:
                 "exit_code": exc.returncode,
             }
         else:
-            return {"stdout": r.stdout.decode(), "stderr": r.stderr.decode(), "exit_code": r.returncode}
+            return {
+                "stdout": r.stdout.decode(),
+                "stderr": r.stderr.decode(),
+                "exit_code": r.returncode,
+            }
 
 
 devbox = DevBox("here", "alpine")
@@ -184,24 +191,22 @@ def create_workdir():
 
 
 class Toolbox(llm.Toolbox):
-    def write_file(self, filename: str, content: str):
-        with open(filename, "w") as f:
-            f.write(content)
+    def write_file(self, filename: str, content: str, step_description: str):
+        with spinner(step_description, die_on_error=False):
+            with open(filename, "w") as f:
+                f.write(content)
 
-    def read_file(self, filename: str):
-        with open(filename, "r") as f:
-            return f.read()
+    def read_file(self, filename: str, step_description: str):
+        with spinner(step_description, die_on_error=False):
+            with open(filename, "r") as f:
+                return f.read()
 
     def print(self, message: str):
         print(message)
 
     def run(self, shell: str, step_description: str):
-        try:
-            with spinner(step_description):
-                return devbox.run(["/bin/sh", "-c", shell])
-        except Exception as exc:
-            print(exc)
-            sys.exit(0)
+        with spinner(step_description):
+            return devbox.run(["/bin/sh", "-c", shell])
 
 
 SYSTEM_PROMPT = """
