@@ -1,13 +1,14 @@
-from rich.console import Console
 import os
+import subprocess
+import sys
+import time
+import tempfile
 
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
-import subprocess
-import sys
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.console import Console
 import llm
-import time
-import tempfile
 
 from . import utils
 from . import models
@@ -41,18 +42,11 @@ def run(command):
     return "".join(output), returncode
 
 
-def before_call(tool, tool_call):
-    pass
-    # print(f"{tool.name}({tool_call.arguments})")
-
-
-def after_call(tool, tool_call, tool_result):
-    pass
-    # print(f"-> {tool_result.output}")
-
-
 class Toolbox(llm.Toolbox):
-    def __init__(self):
+    def __init__(self, status_cb):
+        self.status_cb = status_cb
+
+    def _create_workdir(self):
         subprocess.run(
             [
                 "git",
@@ -82,7 +76,7 @@ class Toolbox(llm.Toolbox):
 
     def run(self, shell: str, step_description: str):
         try:
-            print(step_description)
+            self.status_cb(step_description)
             out = run(
                 [
                     "limactl",
@@ -97,7 +91,6 @@ class Toolbox(llm.Toolbox):
                 ]
             )
             return out
-            subprocess.check_call(["docker", "commit", "claudia", "claudia"])
         except Exception as exc:
             print(exc)
             sys.exit(0)
@@ -115,24 +108,36 @@ SYSTEM_PROMPT = """
 
 
 def main():
-    toolbox = Toolbox()
     conversation = model.conversation()
     history = FileHistory(os.path.expanduser("~/.klaus_history"))
+    console.print("[cyan]Claudia> Hello, here to help.")
     while True:
         user_input = prompt(
-            "> ",
+            "You> ",
             history=history,
             prompt_continuation="... ",
         )
+
+        progress = Progress(
+            SpinnerColumn(), TextColumn("{task.description}"), transient=True
+        )
+        update_progress = lambda x: progress.update(task_id, description=x)
+        task_id = progress.add_task("Spinning...", total=None)
+        toolbox = Toolbox(update_progress)
+        toolbox._create_workdir()
+        update_progress("Spinning...")
+        progress.start()
+
         response = conversation.chain(
             user_input,
             tools=[toolbox],
             system=SYSTEM_PROMPT.format(project_map=utils.get_project_map()),
-            before_call=before_call,
-            after_call=after_call,
         )
 
         for token in response:
             pass
             # console.print(f"[cyan]{token}", end="")
-        # console.print(f"[cyan]{response.text()}")
+        progress.stop()
+
+        last_response = response._responses[-1]
+        console.print(f"[cyan]Claudia> {last_response.text()}", end="")
