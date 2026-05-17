@@ -11,6 +11,7 @@ from rich.console import Console
 import llm
 import hashlib
 import shutil
+import atexit
 
 from . import utils
 from . import models
@@ -99,6 +100,7 @@ class Spinner:
 
 
 spinner = Spinner()
+atexit.register(spinner.stop)
 spinner.start()
 
 
@@ -206,10 +208,8 @@ def create_synced_worktree(workdir):
             status, path = line.split(None, 1)
             source_path = os.path.join(git_dir, path)
             target_path = os.path.join(workdir, path)
-            if status == "M":
+            if status in ("M", "A"):
                 shutil.copyfile(source_path, target_path)
-                debug(f"shutil.copyfile({source_path}, {target_path})")
-            elif status == "A":
                 debug(f"shutil.copyfile({source_path}, {target_path})")
             else:
                 debug("skipping git status line: " + line)
@@ -274,6 +274,7 @@ def main():
         history = FileHistory(os.path.expanduser("~/.klaus_history"))
         with spinner:
             console.print("[cyan]Claudia> Hello, how can I help.")
+        sys.exit(0)
         while True:
             with spinner:
                 user_input = prompt(
@@ -312,5 +313,3 @@ def main():
     except (KeyboardInterrupt, EOFError):
         spinner.stop()
         console.print("[cyan]Claudia> Goodbye")
-        subprocess.run(["git", "stash", "-u"], cwd=workdir)
-        sys.exit(130)
