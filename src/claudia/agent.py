@@ -9,11 +9,16 @@ from prompt_toolkit.history import FileHistory
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.console import Console
 import llm
+import hashlib
 
 from . import utils
 from . import models
 
 # DOCKER_EXIT_CODES = [125, 126]
+
+
+def hash(obj):
+    return hashlib.sha256(repr(obj).encode("utf-8")).hexdigest()
 
 
 model = models.DeepSeekChat("deepseek-v4-flash")
@@ -27,7 +32,7 @@ workdirs = os.path.realpath(".claudia/workdirs")
 os.makedirs(workdirs, exist_ok=True)
 workdir = tempfile.mkdtemp(dir=workdirs, prefix="")
 
-DEBUG = False
+DEBUG = True
 
 
 def before_call(tool, tool_call):
@@ -104,7 +109,7 @@ class DevBox:
 
     @property
     def name(self):
-        return f"claudia-{self.project_name}-{self.base_image}-{hash(tuple(self.extra_docker_args))}"
+        return f"claudia-{self.project_name}-{self.base_image}-{hash(self.extra_docker_args)}"
 
     def create_if_not_exists(self):
         with spinner("Checking devbox..."):
@@ -221,9 +226,9 @@ class Toolbox(llm.Toolbox):
     def run(self, shell: str, step_description: str):
         with spinner(step_description):
             ret = devbox.run(["/bin/sh", "-c", shell])
-            if len(ret["stderr"]) + len(ret["stdout"]) > 1024 * 3:
+            if (len(ret["stderr"]) + len(ret["stdout"])) > (1024 * 10):
                 return {
-                    "error": f"Output too long (you get {1024 * 3} chars max)",
+                    "error": f"Output too long (you get {1024 * 10} chars max)",
                 }
             return ret
 
