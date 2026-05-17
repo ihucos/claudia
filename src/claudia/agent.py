@@ -23,7 +23,9 @@ current_dir = os.getcwd()
 
 console = Console()
 
-workspace = tempfile.mkdtemp(dir=os.path.expanduser("~/.claudia-workspace"))
+workdirs = os.path.realpath(".claudia/workdirs")
+os.makedirs(workdirs, exist_ok=True)
+workdir = tempfile.mkdtemp(dir=workdirs, prefix="")
 
 DEBUG = False
 
@@ -166,13 +168,13 @@ class DevBox:
 devbox = DevBox(
     "here",
     "alpine",
-    extra_docker_args=["--volume", f"{workspace}:{current_dir}"],
-    workdir=current_dir,
+    extra_docker_args=["--volume", f"{workdirs}:{workdirs}"],
+    workdir=workdir,
 )
 devbox.create_if_not_exists()
 
 
-def create_workdir(workspace):
+def create_workdir(workdir):
     with spinner("Creating workdir..."):
         subprocess.run(
             [
@@ -180,7 +182,7 @@ def create_workdir(workspace):
                 "worktree",
                 "add",
                 "-f",
-                workspace,
+                workdir,
                 "-b",
                 "new-branch-" + str(time.time()),
             ],
@@ -194,7 +196,7 @@ def create_workdir(workspace):
         subprocess.run(
             ["git", "stash", "apply", "--index"],
             check=True,
-            cwd=workspace,
+            cwd=workdir,
             capture_output=True,
         )
 
@@ -219,9 +221,9 @@ class Toolbox(llm.Toolbox):
     def run(self, shell: str, step_description: str):
         with spinner(step_description):
             ret = devbox.run(["/bin/sh", "-c", shell])
-            if len(ret["stderr"]) + len(ret["stdout"]) > 512:
+            if len(ret["stderr"]) + len(ret["stdout"]) > 1024 * 3:
                 return {
-                    "error": "Output too long (you get 512 chars max)",
+                    "error": f"Output too long (you get {1024 * 3} chars max)",
                 }
             return ret
 
@@ -238,37 +240,51 @@ SYSTEM_PROMPT = """
 
 
 def main():
-    create_workdir(workspace)
-    spinner("Clouding...")
-    conversation = model.conversation()
-    history = FileHistory(os.path.expanduser("~/.klaus_history"))
-    with spinner:
-        console.print("[cyan]Claudia> Hello, here to help.")
-    while True:
+    try:
+        create_workdir(workdir)
+        with spinner("Setting up devbox..."):
+            console.print(f"[cyan] workdir: {workdir}[/cyan]")
+        spinner("Clouding...")
+        conversation = model.conversation()
+        history = FileHistory(os.path.expanduser("~/.klaus_history"))
         with spinner:
-            user_input = prompt(
-                "You> ",
-                history=history,
-                prompt_continuation="... ",
+            console.print("[cyan]Claudia> Hello, how can I help.")
+        while True:
+            with spinner:
+                user_input = prompt(
+                    "You> ",
+                    history=history,
+                    prompt_continuation="... ",
+                )
+
+            if user_input == "breakpoint":
+                with spinner:
+                    breakpoint()
+                continue
+
+            response = conversation.chain(
+                user_input,
+                after_call=after_call,
+                before_call=before_call,
+                tools=[Toolbox()],
+                system=SYSTEM_PROMPT.format(
+                    project_map=utils.get_project_map(prepend_dummy_dir=False)
+                ),
             )
 
-        response = conversation.chain(
-            user_input,
-            after_call=after_call,
-            before_call=before_call,
-            tools=[Toolbox()],
-            system=SYSTEM_PROMPT.format(
-                project_map=utils.get_project_map(prepend_dummy_dir=False)
-            ),
-        )
-
-        for token in response:
-            pass
+            # for token in response:
+            #     pass
             # console.print(f"[cyan]{token}", end="")
+            # wait
+            response.text()
 
-        last_response = response._responses[-1]
-        with spinner:
-            if not last_response.text():
-                console.print("[cyan]Claudia> ...")
-            else:
-                console.print(f"[cyan]Claudia> {last_response.text()}", end="")
+            last_response = response._responses[-1]
+            with spinner:
+                if not last_response.text():
+                    console.print("[cyan]Claudia> ...")
+                else:
+                    console.print(f"[cyan]Claudia> {last_response.text()}", end="")
+    except KeyboardInterrupt:
+        spinner.stop()
+        console.print("[cyan]Claudia> Goodbye")
+        sys.exit(130)
