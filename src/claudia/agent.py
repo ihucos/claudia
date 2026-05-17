@@ -10,6 +10,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.console import Console
 import llm
 import hashlib
+import shutil
 
 from . import utils
 from . import models
@@ -24,27 +25,28 @@ def hash(obj):
 model = models.DeepSeekChat("deepseek-v4-flash")
 model.supports_tools = True
 
-current_dir = os.getcwd()
+# MAKE IT THE GIT DIR!
 
 console = Console()
 
+git_dir = os.getcwd()
 workdirs = os.path.realpath(".claudia/workdirs")
 os.makedirs(workdirs, exist_ok=True)
 workdir = tempfile.mkdtemp(dir=workdirs, prefix="")
 
-DEBUG = False
+
+def debug(text):
+    if os.environ.get("CLAUDIA_DEBUG") in ["1", "true"]:
+        with spinner:
+            console.print(text, style="dim")
 
 
 def before_call(tool, tool_call):
-    if DEBUG:
-        with spinner:
-            print(f"{tool.name}: {tool_call.arguments}")
+    debug(f"{tool.name}: {tool_call.arguments}")
 
 
 def after_call(tool, tool_call, tool_result):
-    if DEBUG:
-        with spinner:
-            print(f"-> {tool_result.output}")
+    debug(f"-> {tool_result.output}")
 
 
 class ExceptionHandler:
@@ -189,28 +191,46 @@ def create_workdir(workdir):
                 "-f",
                 workdir,
                 "-b",
-                "new-branch-" + str(time.time()),
+                f"claudia-{os.path.basename(workdir)}",
             ],
             check=True,
             capture_output=True,
         )
-        subprocess.run(["git", "stash", "-u"], check=True, capture_output=True)
-        subprocess.run(
-            ["git", "stash", "apply", "--index"], check=True, capture_output=True
-        )
-        subprocess.run(
-            ["git", "stash", "apply", "--index"],
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--short"],
             check=True,
-            cwd=workdir,
             capture_output=True,
-        )
+            text=True,
+        ).stdout
+        for line in out.splitlines():
+            status, path = line.split(None, 1)
+            source_path = os.path.join(git_dir, path)
+            target_path = os.path.join(workdir, path)
+            if status == "M":
+                shutil.copyfile(source_path, target_path)
+                debug(f"shutil.copyfile({source_path}, {target_path})")
+            elif status == "A":
+                debug(f"shutil.copyfile({source_path}, {target_path})")
+            else:
+                debug("skipping git status line: " + line)
+
+        # subprocess.run(["git", "stash", "-u"], check=True, capture_output=True)
+        # subprocess.run(
+        #     ["git", "stash", "apply", "--index"], check=True, capture_output=True
+        # )
+        # subprocess.run(
+        #     ["git", "stash", "apply", "--index"],
+        #     check=True,
+        #     cwd=workdir,
+        #     capture_output=True,
+        # )
 
 
 class Toolbox(llm.Toolbox):
     def write_file(self, filename: str, content: str, step_description: str):
         with spinner(step_description):
             try:
-                with open(filename, "w") as f:
+                with open(os.path.join(workdir, filename), "w") as f:
                     f.write(content)
             except OSError as exc:
                 return {"error": str(exc)}
@@ -218,7 +238,7 @@ class Toolbox(llm.Toolbox):
     def read_file(self, filename: str, step_description: str):
         with spinner(step_description):
             try:
-                with open(filename, "r") as f:
+                with open(os.path.join(workdir, filename), "r") as f:
                     return f.read()
             except OSError as exc:
                 return {"error": str(exc)}
@@ -247,7 +267,7 @@ SYSTEM_PROMPT = """
 def main():
     try:
         create_workdir(workdir)
-        with spinner("Setting up devbox..."):
+        with spinner:
             console.print(f"[cyan] workdir: {workdir}[/cyan]")
         spinner("Clouding...")
         conversation = model.conversation()
@@ -289,7 +309,8 @@ def main():
                     console.print("[cyan]Claudia> ...")
                 else:
                     console.print(f"[cyan]Claudia> {last_response.text()}", end="")
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         spinner.stop()
         console.print("[cyan]Claudia> Goodbye")
+        subprocess.run(["git", "stash", "-u"], cwd=workdir)
         sys.exit(130)
