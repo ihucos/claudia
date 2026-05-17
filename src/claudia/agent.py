@@ -13,6 +13,8 @@ import llm
 from . import utils
 from . import models
 
+# DOCKER_EXIT_CODES = [125, 126]
+
 
 model = models.DeepSeekChat("deepseek-v4-flash")
 model.supports_tools = True
@@ -20,6 +22,41 @@ model.supports_tools = True
 console = Console()
 
 workspace = tempfile.mkdtemp(dir=os.path.expanduser("~/.claudia-workspace"))
+
+
+def before_call(tool, tool_call):
+    if tool.name == "Toolbox_run":
+        with spinner:
+            print(f"{tool.name}: {tool_call.arguments}")
+
+
+def after_call(tool, tool_call, tool_result):
+    if tool.name == "Toolbox_run":
+        with spinner:
+            print(f"-> {tool_result.output}")
+
+
+class ExceptionHandler:
+    def __init__(self):
+        pass
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            try:
+                raise
+            except subprocess.CalledProcessError as exc:
+                spinner.stop()
+                console.print("stodout:", exc.stdout)
+                console.print("stderr:", exc.stderr)
+                console.print("claudia error:", exc, style="bold red")
+                sys.exit(1)
+            except Exception as exc:
+                spinner.stop()
+                console.print("claudia error:", exc, style="bold red")
+                sys.exit(1)
 
 
 class Spinner:
@@ -36,7 +73,8 @@ class Spinner:
         self.progress.start()
 
     def __call__(self, text):
-        self.progress.update(self.task_id, description=text)
+        self.progress.update(self.task_id, description=f"[cyan]{text}[/cyan]")
+        return ExceptionHandler()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
@@ -51,29 +89,75 @@ spinner = Spinner()
 spinner.start()
 
 
-def run(command):
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        cwd=workspace,
-    )
+class DevBox:
+    def __init__(self, project_name, base_image):
+        self.project_name = project_name
+        self.base_image = base_image
 
-    output = []
-    for line in process.stdout:
-        # sys.stdout.write(line)
-        output.append(line)
+    @property
+    def name(self):
+        return f"claudia-{self.project_name}-{self.base_image}"
 
-    returncode = process.wait()
-    if len(output) > 512:
-        return {"error": "Output too long (you get 512 chars max)"}, returncode
-    return "".join(output), returncode
+    def create_if_not_exists(self):
+        with spinner("Checking devbox..."):
+            existing_containers = subprocess.run(
+                ["docker", "ps", "-a", "--format", "{{.Names}}"],
+                text=True,
+                check=True,
+                capture_output=True,
+            ).stdout.splitlines()
+        if self.name not in existing_containers:
+            self.create()
+        self.start()
+
+    def start(self):
+        with spinner("Starting devbox..."):
+            subprocess.run(
+                ["docker", "start", self.name],
+                check=True,
+                capture_output=True,
+            )
+
+    def create(self):
+        with spinner("Creating devbox..."):
+            subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-dti",
+                    "--name",
+                    self.name,
+                    self.base_image,
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+    def run(self, cmd):
+        try:
+            r = subprocess.run(
+                ["docker", "exec", self.name] + cmd,
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            # if exc.returncode in DOCKER_EXIT_CODES:
+            #     raise
+            return {
+                "stdout": exc.stdout.decode(),
+                "stderr": exc.stderr.decode(),
+                "exit_code": exc.returncode,
+            }
+        else:
+            return {"stdout": r.stdout.decode(), "stderr": r.stderr.decode(), "exit_code": r.returncode}
+
+
+devbox = DevBox("here", "alpine")
+devbox.create_if_not_exists()
 
 
 def create_workdir():
-    spinner("Creating workdir...")
-    try:
+    with spinner("Creating workdir..."):
         subprocess.run(
             [
                 "git",
@@ -97,12 +181,6 @@ def create_workdir():
             cwd=workspace,
             capture_output=True,
         )
-    except subprocess.CalledProcessError as exc:
-        spinner.stop()
-        console.print("stodout:", exc.stdout)
-        console.print("stderr:", exc.stderr)
-        console.print("claudia error:", exc, style="bold red")
-        sys.exit(1)
 
 
 class Toolbox(llm.Toolbox):
@@ -119,21 +197,8 @@ class Toolbox(llm.Toolbox):
 
     def run(self, shell: str, step_description: str):
         try:
-            spinner(step_description)
-            out = run(
-                [
-                    "limactl",
-                    "--log-level",
-                    "error",
-                    "shell",
-                    "alpine6",
-                    "sudo",
-                    "sh",
-                    "-c",
-                    shell,
-                ]
-            )
-            return out
+            with spinner(step_description):
+                return devbox.run(["/bin/sh", "-c", shell])
         except Exception as exc:
             print(exc)
             sys.exit(0)
@@ -167,6 +232,8 @@ def main():
 
         response = conversation.chain(
             user_input,
+            after_call=after_call,
+            before_call=before_call,
             tools=[Toolbox()],
             system=SYSTEM_PROMPT.format(
                 project_map=utils.get_project_map(prepend_dummy_dir=False)
