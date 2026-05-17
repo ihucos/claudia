@@ -166,7 +166,7 @@ class DevBox:
 devbox = DevBox(
     "here",
     "alpine",
-    extra_docker_args=["--volume", f"current_dir:{workspace}"],
+    extra_docker_args=["--volume", f"{workspace}:{current_dir}"],
     workdir=current_dir,
 )
 devbox.create_if_not_exists()
