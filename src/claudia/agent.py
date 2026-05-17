@@ -9,6 +9,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.console import Console
 from rich.text import Text
 from rich.panel import Panel
+from rich.prompt import Confirm
 import llm
 import hashlib
 import atexit
@@ -277,42 +278,49 @@ def user_cmd_changes():
             check=True,
         ).stdout.strip()
 
-    with spinner, console.pager(styles=True):
-        console.print(
-            Panel(
-                f"{branch} -> {current_branch}",
-                title="Merge",
-                border_style="green",
-                title_align="left",
-                padding=(1, 2),
+    with spinner:
+        with console.pager(styles=True):
+            console.print(
+                Panel(
+                    f"{branch} -> {current_branch}",
+                    title="Merge",
+                    border_style="green",
+                    title_align="left",
+                    padding=(1, 2),
+                )
             )
-        )
-        console.print(
-            Panel(
-                Text.from_ansi(commits),
-                title="Commits",
-                border_style="yellow",
-                title_align="left",
-                padding=(1, 2),
+            console.print(
+                Panel(
+                    Text.from_ansi(commits),
+                    title="Commits",
+                    border_style="yellow",
+                    title_align="left",
+                    padding=(1, 2),
+                )
             )
-        )
-        console.print(
-            Panel(
-                Text.from_ansi(stat_raw),
-                title="Files",
-                border_style="cyan",
-                title_align="left",
-                padding=(1, 2),
+            console.print(
+                Panel(
+                    Text.from_ansi(stat_raw),
+                    title="Files",
+                    border_style="cyan",
+                    title_align="left",
+                    padding=(1, 2),
+                )
             )
-        )
-        console.print(
-            Panel(
-                Text.from_ansi(diff_raw),
-                title="Diff",
-                border_style="magenta",
-                title_align="left",
-                padding=(1, 1),
+            console.print(
+                Panel(
+                    Text.from_ansi(diff_raw),
+                    title="Diff",
+                    border_style="magenta",
+                    title_align="left",
+                    padding=(1, 1),
+                )
             )
+        console.print()
+
+        apply_changes = Confirm.ask(
+            f"[bold green]Merge {branch} into {current_branch}?[/bold green]",
+            default=False,
         )
 
 
