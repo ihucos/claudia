@@ -6,8 +6,6 @@ import shlex
 import sys
 import llm
 
-from ..ui import UI
-
 
 class DevBox:
     def __init__(self, project_name, base_image):
@@ -108,7 +106,7 @@ class Toolbox(llm.Toolbox):
             return ret
 
 
-def main(*, model: llm.Model, ui: UI):
+def run(*, model, ui):
     app_dir = os.path.realpath(".")
 
     devbox = DevBox(
@@ -116,27 +114,26 @@ def main(*, model: llm.Model, ui: UI):
         "alpine",
     )
 
-    with UI.from_env() as ui:
-        if not devbox.exists():
-            with ui.loading("Creating devbox..."):
-                devbox.create()
-        else:
-            with ui.loading("Starting devbox..."):
-                devbox.start()
+    if not devbox.exists():
+        with ui.loading("Creating devbox..."):
+            devbox.create()
+    else:
+        with ui.loading("Starting devbox..."):
+            devbox.start()
 
-        with ui.loading("Syncing container dir..."):
-            container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
-            devbox.sync_up(app_dir, container_app_dir)
+    with ui.loading("Syncing container dir..."):
+        container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
+        devbox.sync_up(app_dir, container_app_dir)
 
-        ui.hello()
-        while True:
-            query = ui.prompt()
-            if query is None:
-                break
-            ui.loading("calculating...")
-            sleep(1)
-            ui.answer("echo: " + query)
-        ui.bye()
+    ui.hello()
+    while True:
+        query = ui.prompt()
+        if query is None:
+            break
+        ui.loading("calculating...")
+        sleep(1)
+        ui.answer("echo: " + query)
+    ui.bye()
 
 
 #
