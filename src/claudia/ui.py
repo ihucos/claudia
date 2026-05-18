@@ -93,13 +93,13 @@ class UI:
 
     def answer(self, answer):
         self.progress.stop()
-        self.console.print(f"[cyan]Claudia> {answer}[/cyan]")
+        self.console.print(f"[cyan]Claudia > {answer}[/cyan]")
         self.progress.start()
 
     def prompt(self):
         self.progress.stop()
         try:
-            p = prompt("You> ", history=self.history)
+            p = prompt("You > ", history=self.history)
         except (EOFError, KeyboardInterrupt):
             return None
         self.loading("")

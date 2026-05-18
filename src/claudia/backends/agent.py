@@ -4,6 +4,7 @@ import os
 import tempfile
 import shlex
 import sys
+import llm
 
 from ..ui import UI
 
@@ -80,31 +81,42 @@ class DevBox:
         )
 
 
-def main():
-    app_dir = os.path.realpath(".")
-    # workdirs = os.path.realpath(".claudia/workdirs")
-    # os.makedirs(workdirs, exist_ok=True)
-    # workdir = tempfile.mkdtemp(dir=workdirs, prefix="")
-    # workdirs = f"{workdirs}:/apps"
+class Toolbox(llm.Toolbox):
+    def __init__(self, *, ui, devbox):
+        self.ui = ui
+        self.devbox = devbox
 
-    # with tempfile.TemporaryDirectory() as tmpdir:
-    #     subprocess.run(
-    #         f"git ls-files -c -m -o --exclude-standard -z | tar -czf {shlex.quote(tmpdir)}/project.tar.gz --null -T -",
-    #         shell=True,
-    #     )
-    #     print(tmpdir)
-    #     breakpoint()
+    def write_file(self, filename: str, content: str):
+        with self.ui.loading(f"Writing {filename}..."):
+            self.devbox.run(
+                ["sh", "-c", "echo $0 > $1", content, filename],
+            )
+
+    def read_file(self, filename: str):
+        with self.ui.loading(f"Reading {filename}..."):
+            return self.devbox.run(
+                ["sh", "-c", "cat $0", filename],
+            )
+
+    def run(self, shell: str, step_description: str):
+        with self.ui.loading(step_description):
+            ret = self.devbox.run(["/bin/sh", "-c", shell])
+            if (len(ret["stderr"]) + len(ret["stdout"])) > (1024 * 10):
+                return {
+                    "error": f"Output too long (you get {1024 * 10} chars max)",
+                }
+            return ret
+
+
+def main(*, model: llm.Model, ui: UI):
+    app_dir = os.path.realpath(".")
 
     devbox = DevBox(
-        "my-project",
+        app_dir.replace("/", "."),
         "alpine",
     )
 
-    # devbox.sync_down(XXXX + app_dir)
-
     with UI.from_env() as ui:
-        devbox.start_or_create()
-
         if not devbox.exists():
             with ui.loading("Creating devbox..."):
                 devbox.create()
@@ -112,12 +124,10 @@ def main():
             with ui.loading("Starting devbox..."):
                 devbox.start()
 
-        with ui.loading("Syncing dir..."):
+        with ui.loading("Syncing container dir..."):
             container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
             devbox.sync_up(app_dir, container_app_dir)
 
-        # ui.loading("still waiting...")
-        # sleep(1)
         ui.hello()
         while True:
             query = ui.prompt()
