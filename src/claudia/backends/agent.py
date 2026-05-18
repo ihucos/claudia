@@ -79,15 +79,17 @@ class DevBox:
         # }
 
     def sync_up(self, src, dst):
+        src_path = f"{src}/." if not src.endswith("/.") else src
         subprocess.run(
-            ["docker", "cp", src, f"{self.name}:{dst}"],
+            ["docker", "cp", src_path, f"{self.name}:{dst}"],
             check=True,
             capture_output=True,
         )
 
     def sync_down(self, src, dst):
+        src_path = f"{src}/." if not src.endswith("/.") else src
         subprocess.run(
-            ["docker", "cp", f"{self.name}:{src}", dst],
+            ["docker", "cp", f"{self.name}:{src_path}", dst],
             check=True,
             capture_output=True,
         )
@@ -101,7 +103,7 @@ class Toolbox(llm.Toolbox):
     def write_file(self, filename: str, content: str):
         with self.ui.loading(f"Writing {filename}..."):
             ret = self.devbox.run(
-                ["sh", "-c", "echo $0 > $1", content, filename],
+                ["sh", "-c", 'echo "$0" > "$1"', content, filename],
             )
             if ret.returncode != 0:
                 return {"error": ret.stderr}
@@ -109,7 +111,7 @@ class Toolbox(llm.Toolbox):
     def read_file(self, filename: str):
         with self.ui.loading(f"Reading {filename}..."):
             ret = self.devbox.run(
-                ["sh", "-c", "cat $0", filename],
+                ["sh", "-c", 'cat "$0"', filename],
             )
             if ret.returncode != 0:
                 return {"error": ret.stderr}
@@ -174,7 +176,13 @@ def run(*, model, ui):
             ),
         )
 
-        ui.answer(response.text())
+        answer = response.text()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            devbox.sync_down(container_app_dir, tmpdir)
+            print(tmpdir)
+            breakpoint()
+
+        ui.answer(answer)
     ui.bye()
 
 
