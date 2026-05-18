@@ -93,13 +93,15 @@ class UI:
 
     def answer(self, answer):
         self.progress.stop()
-        self.console.print(f"[cyan]Claudia > {answer}[/cyan]")
+        self.console.print(f"[blue]Claudia >[/blue] {answer}")
         self.progress.start()
 
     def prompt(self):
         self.progress.stop()
         try:
-            p = prompt("You > ", history=self.history)
+            from prompt_toolkit.formatted_text import HTML
+
+            p = prompt(HTML("<ansimagenta>You > </ansimagenta>"), history=self.history)
         except (EOFError, KeyboardInterrupt):
             return None
         self.loading("")
@@ -107,10 +109,7 @@ class UI:
         return p
 
     def bye(self):
-        self.progress.stop()
-        self.console.print("[cyan]Claudia> Goodbye")
+        self.answer("Goodbye!")
 
     def hello(self):
-        self.progress.stop()
-        self.console.print("[cyan]Claudia> Hello, how can I help.")
-        self.progress.start()
+        self.answer("Hello, how can I help?")
