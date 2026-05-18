@@ -7,4 +7,6 @@ from . import models
 def main():
     ui = UI.from_env()
     model = models.DeepSeekChat("deepseek-v4-flash")
-    agent_run(model=model, ui=ui)
+    model.supports_tools = True
+    with ui:
+        agent_run(model=model, ui=ui)

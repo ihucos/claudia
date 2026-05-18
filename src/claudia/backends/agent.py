@@ -6,6 +6,20 @@ import shlex
 import sys
 import llm
 
+from .. import utils
+
+SYSTEM_PROMPT = """
+# Task
+You are a coding agent.
+
+## Notes
+- Use the tools.
+- Install any software you need to accomplish the requested task.
+
+## Application structure
+{project_map}
+""".strip()
+
 
 class DevBox:
     def __init__(self, project_name, base_image):
@@ -86,126 +100,84 @@ class Toolbox(llm.Toolbox):
 
     def write_file(self, filename: str, content: str):
         with self.ui.loading(f"Writing {filename}..."):
-            self.devbox.run(
+            ret = self.devbox.run(
                 ["sh", "-c", "echo $0 > $1", content, filename],
             )
+            if ret.returncode != 0:
+                return {"error": ret.stderr}
 
     def read_file(self, filename: str):
         with self.ui.loading(f"Reading {filename}..."):
-            return self.devbox.run(
+            ret = self.devbox.run(
                 ["sh", "-c", "cat $0", filename],
             )
+            if ret.returncode != 0:
+                return {"error": ret.stderr}
+            return ret.stdout
 
     def run(self, shell: str, step_description: str):
         with self.ui.loading(step_description):
             ret = self.devbox.run(["/bin/sh", "-c", shell])
-            if (len(ret["stderr"]) + len(ret["stdout"])) > (1024 * 10):
+            if (len(ret.stderr) + len(ret.stdout)) > (1024 * 10):
                 return {
                     "error": f"Output too long (you get {1024 * 10} chars max)",
                 }
-            return ret
+            return {
+                "stdout": ret.stdout,
+                "stderr": ret.stderr,
+                "exit_code": ret.returncode,
+            }
 
 
 def run(*, model, ui):
+    #
+    # Init vars here
+    #
     app_dir = os.path.realpath(".")
-
+    conversation = model.conversation()
     devbox = DevBox(
         app_dir.replace("/", "."),
         "alpine",
     )
+    toolbox = Toolbox(ui=ui, devbox=devbox)
 
+    #
+    # Prepare the devbox
+    #
     if not devbox.exists():
         with ui.loading("Creating devbox..."):
             devbox.create()
     else:
         with ui.loading("Starting devbox..."):
             devbox.start()
-
     with ui.loading("Syncing container dir..."):
         container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
         devbox.sync_up(app_dir, container_app_dir)
 
+    #
+    # Say hello
+    #
     ui.hello()
+
+    #
+    # Loop
+    #
     while True:
         query = ui.prompt()
         if query is None:
             break
-        ui.loading("calculating...")
-        sleep(1)
-        ui.answer("echo: " + query)
+        response = conversation.chain(
+            query,
+            tools=[toolbox],
+            system=SYSTEM_PROMPT.format(
+                project_map=utils.get_project_map(prepend_dummy_dir=False)
+            ),
+        )
+
+        ui.answer(response.text())
     ui.bye()
 
 
-#
-# devbox.create_if_not_exists()
-#
-# branch = f"claudia-{os.path.basename(workdir)}"
-#
-#
-# def create_worktree(workdir):
-#     with spinner("Creating worktree..."):
-#         subprocess.run(
-#             [
-#                 "git",
-#                 "worktree",
-#                 "add",
-#                 "-f",
-#                 workdir,
-#                 "-b",
-#                 branch,
-#             ],
-#             check=True,
-#             capture_output=True,
-#         )
-#
-#
-# class Toolbox(llm.Toolbox):
-#     def write_file(self, filename: str, content: str, step_description: str):
-#         with spinner(step_description):
-#             try:
-#                 with open(os.path.join(workdir, filename), "w") as f:
-#                     f.write(content)
-#             except OSError as exc:
-#                 return {"error": str(exc)}
-#
-#     def read_file(self, filename: str, step_description: str):
-#         with spinner(step_description):
-#             try:
-#                 with open(os.path.join(workdir, filename), "r") as f:
-#                     return f.read()
-#             except OSError as exc:
-#                 return {"error": str(exc)}
-#
-#     def run(self, shell: str, step_description: str):
-#         with spinner(step_description):
-#             ret = devbox.run(["/bin/sh", "-c", shell])
-#             if (len(ret["stderr"]) + len(ret["stdout"])) > (1024 * 10):
-#                 return {
-#                     "error": f"Output too long (you get {1024 * 10} chars max)",
-#                 }
-#             return ret
-#
-#     def commit(self, commit_msg: str, add_files: list[str]):
-#         with spinner:
-#             console.print(f"[green]committing: {commit_msg.splitlines()[0]}[/green]")
-#         with spinner("Committing changes..."):
-#             subprocess.run(
-#                 ["git", "add"] + add_files,
-#                 check=True,
-#                 cwd=workdir,
-#                 capture_output=True,
-#             )
-#             subprocess.run(
-#                 ["git", "commit", "-m", commit_msg],
-#                 check=True,
-#                 cwd=workdir,
-#                 capture_output=True,
-#             )
-#
-#     def request_merge(self):
-#         request_merge()
-#
-#
 # def get_ansi_diff_info():
 #     with spinner("Checking changes..."):
 #         current_branch = subprocess.run(
@@ -297,17 +269,6 @@ def run(*, model, ui):
 #                 console.print("[red]Not Merged[/red]")
 #
 #
-# SYSTEM_PROMPT = """
-# # Notes
-# - You are an coding agent.
-# - Use the tools.
-# - Install any software you need to accomplish the task.
-# - Commit when your have completed a single, logical unit of work.
-# - Call the request_merge() function when you want to request a merge of your commits. This must be done at the end of an task that involves commits.
-#
-# # Application structure
-# {project_map}
-# """.strip()
 #
 #
 # def main():
