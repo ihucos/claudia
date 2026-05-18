@@ -96,14 +96,16 @@ class DevBox:
 
 
 class Toolbox(llm.Toolbox):
-    def __init__(self, *, ui, devbox):
+    def __init__(self, *, ui, devbox, workdir="/"):
         self.ui = ui
         self.devbox = devbox
+        self.workdir = workdir
 
     def write_file(self, filename: str, content: str):
         with self.ui.loading(f"Writing {filename}..."):
             ret = self.devbox.run(
                 ["sh", "-c", 'echo "$0" > "$1"', content, filename],
+                workdir=self.workdir,
             )
             if ret.returncode != 0:
                 return {"error": ret.stderr}
@@ -112,6 +114,7 @@ class Toolbox(llm.Toolbox):
         with self.ui.loading(f"Reading {filename}..."):
             ret = self.devbox.run(
                 ["sh", "-c", 'cat "$0"', filename],
+                workdir=self.workdir,
             )
             if ret.returncode != 0:
                 return {"error": ret.stderr}
@@ -119,7 +122,7 @@ class Toolbox(llm.Toolbox):
 
     def run(self, shell: str, step_description: str):
         with self.ui.loading(step_description):
-            ret = self.devbox.run(["/bin/sh", "-c", shell])
+            ret = self.devbox.run(["/bin/sh", "-c", shell], workdir=self.workdir)
             if (len(ret.stderr) + len(ret.stdout)) > (1024 * 10):
                 return {
                     "error": f"Output too long (you get {1024 * 10} chars max)",
@@ -141,7 +144,9 @@ def run(*, model, ui):
         app_dir.replace("/", "."),
         "alpine",
     )
-    toolbox = Toolbox(ui=ui, devbox=devbox)
+    with ui.loading("Creating app dir..."):
+        container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
+    toolbox = Toolbox(ui=ui, devbox=devbox, workdir=container_app_dir)
 
     #
     # Prepare the devbox
@@ -153,7 +158,6 @@ def run(*, model, ui):
         with ui.loading("Starting devbox..."):
             devbox.start()
     with ui.loading("Syncing container dir..."):
-        container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
         devbox.sync_up(app_dir, container_app_dir)
 
     #
@@ -177,10 +181,26 @@ def run(*, model, ui):
         )
 
         answer = response.text()
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with (
+            ui.loading("Syncing container dir..."),
+            tempfile.TemporaryDirectory() as tmpdir,
+        ):
             devbox.sync_down(container_app_dir, tmpdir)
             print(tmpdir)
-            breakpoint()
+
+            ui.progress.stop()
+            subprocess.run(
+                [
+                    "git",
+                    "diff",
+                    "--no-index",
+                    app_dir,
+                    tmpdir,
+                    "--diff-filter=AM",
+                ],
+                check=True,
+            )
+            ui.progress.start()
 
         ui.answer(answer)
     ui.bye()

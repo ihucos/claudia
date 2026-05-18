@@ -21,7 +21,7 @@ class HandleException:
             try:
                 raise
             except subprocess.CalledProcessError as exc:
-                self.spinner.stop()
+                self.ui.stop()
                 self.console.print("stodout:", exc.stdout)
                 self.console.print("stderr:", exc.stderr)
                 self.console.print("claudia error:", exc, style="bold red")
