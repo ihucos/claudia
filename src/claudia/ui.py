@@ -1,4 +1,5 @@
 import sys
+import os
 import subprocess
 
 from prompt_toolkit import prompt
@@ -40,24 +41,43 @@ class HandleExit:
         self.exit_cb.stop()
 
 
-class TUI:
-    def __init__(self, *, history_file, action_handler, debug=False):
+class UI:
+    def __init__(self, *, history_file, debug=False):
         self.progress = Progress(
             SpinnerColumn(), TextColumn("{task.description}"), transient=True
         )
-        self.task_id = self.progress.add_task("Spinning...", total=None)
+        self.task_id = self.progress.add_task("", total=None)
         self.console = Console()
         self.history = FileHistory(history_file)
-        self.action_handler = action_handler
+        self.debug = debug
+
+    def __enter__(self):
+        self.progress.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            return False
+        self.progress.stop()
+
+    @classmethod
+    def from_env(cls):
+        return cls(
+            history_file=os.environ.get(
+                "CLAUDIA_HISTORY", os.path.expanduser("~/.claudia_history")
+            ),
+            debug=os.environ.get("CLAUDIA_DEBUG") in ["1", "true"],
+        )
 
     def loading(self, text):
         self.progress.update(self.task_id, description=f"[cyan]{text}[/cyan]")
         return HandleExit(self.progress.stop)
 
     def debug(self, text):
-        self.progress.stop()
-        self.console.print(text, style="dim")
-        self.progress.start()
+        if self.debug:
+            self.progress.stop()
+            self.console.print(text, style="dim")
+            self.progress.start()
 
     def info(self, text):
         self.console.print(Panel.fit(Text.from_markup(text), title="Info"))
@@ -65,33 +85,29 @@ class TUI:
     def handle_exception(self):
         return HandleException(console=self.console, spinner=self)
 
-    def suggest_diff(self, *, diff, on_accept):
+    def prompt_suggest_diff(self, *, diff, on_accept):
         pass
 
-    def _chat_answer(self, answer):
+    def answer(self, answer):
         self.progress.stop()
         self.console.print(f"[cyan]Claudia> {answer}[/cyan]")
         self.progress.start()
 
-    def _chat_input(self):
+    def prompt(self):
         self.progress.stop()
-        return prompt("You> ", history=self.history)
-        self.progress.stop()
+        try:
+            p = prompt("You> ", history=self.history)
+        except (EOFError, KeyboardInterrupt):
+            return None
+        self.loading("")
+        self.progress.start()
+        return p
 
-    def _bye(self):
+    def bye(self):
         self.progress.stop()
-        self.spinner.stop()
         self.console.print("[cyan]Claudia> Goodbye")
 
-    def loop(self):
+    def hello(self):
         self.progress.stop()
         self.console.print("[cyan]Claudia> Hello, how can I help.")
         self.progress.start()
-        while True:
-            try:
-                user_input = self._chat_input()
-            except (KeyboardInterrupt, EOFError):
-                self._bye()
-                return
-            response = self.action_handler.respond(user_input)
-            self._chat_answer(response)
