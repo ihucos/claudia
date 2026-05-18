@@ -181,12 +181,10 @@ def run(*, model, ui):
         )
 
         answer = response.text()
-        with (
-            ui.loading("Syncing container dir..."),
-            tempfile.TemporaryDirectory() as tmpdir,
-        ):
-            devbox.sync_down(container_app_dir, tmpdir)
-            print(tmpdir)
+        with ui.loading("Syncing container dir..."):
+            tmpdir = tempfile.TemporaryDirectory()
+            ui.debug(tmpdir.name)
+            devbox.sync_down(container_app_dir, tmpdir.name)
 
             ui.progress.stop()
             subprocess.run(
@@ -195,10 +193,9 @@ def run(*, model, ui):
                     "diff",
                     "--no-index",
                     app_dir,
-                    tmpdir,
+                    tmpdir.name,
                     "--diff-filter=AM",
                 ],
-                check=True,
             )
             ui.progress.start()
 

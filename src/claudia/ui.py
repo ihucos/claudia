@@ -52,7 +52,7 @@ class UI:
         self.task_id = self.progress.add_task("", total=None)
         self.console = Console()
         self.history = FileHistory(history_file)
-        self.debug = debug
+        self._debug = debug
 
     def __enter__(self):
         self.progress.start()
@@ -77,7 +77,7 @@ class UI:
         return LoadingCtx(self.progress.stop)
 
     def debug(self, text):
-        if self.debug:
+        if self._debug:
             self.progress.stop()
             self.console.print(text, style="dim")
             self.progress.start()
