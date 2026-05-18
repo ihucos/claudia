@@ -31,14 +31,17 @@ class HandleException:
                 sys.exit(1)
 
 
-class HandleExit:
+class LoadingCtx:
     def __init__(self, exit_cb):
         self.exit_cb = exit_cb
+
+    def __enter__(self):
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
             return False
-        self.exit_cb.stop()
+        # self.exit_cb()
 
 
 class UI:
@@ -71,7 +74,7 @@ class UI:
 
     def loading(self, text):
         self.progress.update(self.task_id, description=f"[cyan]{text}[/cyan]")
-        return HandleExit(self.progress.stop)
+        return LoadingCtx(self.progress.stop)
 
     def debug(self, text):
         if self.debug:
