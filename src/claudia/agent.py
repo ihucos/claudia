@@ -246,8 +246,11 @@ class Toolbox(llm.Toolbox):
                 capture_output=True,
             )
 
+    def request_merge(self):
+        request_merge()
 
-def user_cmd_changes():
+
+def get_ansi_diff_info():
     with spinner("Checking changes..."):
         current_branch = subprocess.run(
             ["git", "branch", "--show-current"], text=True, capture_output=True
@@ -261,26 +264,36 @@ def user_cmd_changes():
         ).stdout.strip()
 
         # Force color on stat so we get the green '+' and red '-' graphs automatically!
-        stat_raw = subprocess.run(
+        stat = subprocess.run(
             ["git", "diff", "--stat", "--color=always", f"HEAD...{branch}"],
             text=True,
             capture_output=True,
             check=True,
         ).stdout.strip()
 
-        diff_raw = subprocess.run(
+        diff = subprocess.run(
             ["git", "diff", "--color=always", f"HEAD...{branch}"],
             text=True,
             capture_output=True,
             check=True,
         ).stdout.strip()
 
+    return {
+        "current_branch": current_branch,
+        "commits": commits,
+        "stat": stat,
+        "diff": diff,
+    }
+
+
+def request_merge():
     with spinner:
+        diff_info = get_ansi_diff_info()
         with console.pager(styles=True):
             console.print(
                 Panel(
-                    f"{branch} -> {current_branch}",
-                    title="Merge",
+                    f"[bold blue]Agent is requesting a merge[bold blue]: {branch} -> {diff_info['current_branch']}",
+                    title="Merge Request",
                     border_style="green",
                     title_align="left",
                     padding=(1, 2),
@@ -288,7 +301,7 @@ def user_cmd_changes():
             )
             console.print(
                 Panel(
-                    Text.from_ansi(commits),
+                    Text.from_ansi(diff_info["commits"]),
                     title="Commits",
                     border_style="yellow",
                     title_align="left",
@@ -297,7 +310,7 @@ def user_cmd_changes():
             )
             console.print(
                 Panel(
-                    Text.from_ansi(stat_raw),
+                    Text.from_ansi(diff_info["stat"]),
                     title="Files",
                     border_style="cyan",
                     title_align="left",
@@ -306,7 +319,7 @@ def user_cmd_changes():
             )
             console.print(
                 Panel(
-                    Text.from_ansi(diff_raw),
+                    Text.from_ansi(diff_info["diff"]),
                     title="Diff",
                     border_style="magenta",
                     title_align="left",
@@ -316,7 +329,7 @@ def user_cmd_changes():
         console.print()
 
         apply_changes = Confirm.ask(
-            f"[green]Merge {branch} into {current_branch}?[/green]",
+            f"[green]Merge {branch} into {diff_info['current_branch']}?[/green]",
             default=False,
         )
         if apply_changes:
@@ -334,6 +347,7 @@ SYSTEM_PROMPT = """
 - Use the tools.
 - Install any software you need to accomplish the task.
 - Commit when your have completed a single, logical unit of work.
+- Call the request_merge() function when you want to request a merge of your commits. This must be done at the end of an task that involves commits.
 
 # Application structure
 {project_map}
@@ -361,9 +375,6 @@ def main():
             if user_input == "breakpoint":
                 with spinner:
                     breakpoint()
-                continue
-            if user_input == "changes":
-                user_cmd_changes()
                 continue
 
             response = conversation.chain(
