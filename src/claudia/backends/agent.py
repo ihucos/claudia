@@ -22,13 +22,13 @@ You are a coding agent.
 
 
 class DevBox:
-    def __init__(self, project_name, base_image):
-        self.project_name = project_name
+    def __init__(self, *, volume, base_image):
+        self.volume = volume
         self.base_image = base_image
 
     @property
     def name(self):
-        return f"claudia-{self.project_name}-{self.base_image}"
+        return f"claudia-{self.volume.replace('/', '_')}-{self.base_image}"
 
     def start_or_create(self):
         if not self.exists():
@@ -58,6 +58,8 @@ class DevBox:
                 "docker",
                 "run",
                 "-dti",
+                "--volume",
+                f"{self.volume}:{self.volume}",
                 "--name",
                 self.name,
                 self.base_image,
@@ -66,56 +68,32 @@ class DevBox:
             capture_output=True,
         )
 
-    def run(self, cmd, workdir="/"):
+    def run(self, cmd):
         return subprocess.run(
-            ["docker", "exec", "--workdir", workdir, self.name] + cmd,
+            ["docker", "exec", "--workdir", self.volume, self.name] + cmd,
             capture_output=True,
             text=True,
         )
 
-    def sync_up(self, src, dst):
-        subprocess.run(
-            ["docker", "cp", f"{src}/.", f"{self.name}:{dst}/."],
-            check=True,
-            capture_output=True,
-        )
-
-    def sync_down(self, src, dst):
-        subprocess.run(
-            ["docker", "cp", f"{self.name}:{src}/.", dst],
-            check=True,
-            capture_output=True,
-        )
-
 
 class Toolbox(llm.Toolbox):
-    def __init__(self, *, ui, devbox, workdir="/"):
+    def __init__(self, *, ui, devbox):
         self.ui = ui
         self.devbox = devbox
-        self.workdir = workdir
 
     def write_file(self, filename: str, content: str):
         with self.ui.loading(f"Writing {filename}"):
-            ret = self.devbox.run(
-                ["sh", "-c", 'echo "$0" > "$1"', content, filename],
-                workdir=self.workdir,
-            )
-            if ret.returncode != 0:
-                return {"error": ret.stderr}
+            with open(filename, "w") as f:
+                f.write(content)
 
     def read_file(self, filename: str):
         with self.ui.loading(f"Reading {filename}"):
-            ret = self.devbox.run(
-                ["sh", "-c", 'cat "$0"', filename],
-                workdir=self.workdir,
-            )
-            if ret.returncode != 0:
-                return {"error": ret.stderr}
-            return ret.stdout
+            with open(filename, "r") as f:
+                return f.read()
 
     def run(self, shell: str, step_description: str):
         with self.ui.loading(step_description):
-            ret = self.devbox.run(["/bin/sh", "-c", shell], workdir=self.workdir)
+            ret = self.devbox.run(["/bin/sh", "-c", shell])
             if (len(ret.stderr) + len(ret.stdout)) > (1024 * 10):
                 return {
                     "error": f"Output too long (you get {1024 * 10} chars max)",
@@ -127,115 +105,6 @@ class Toolbox(llm.Toolbox):
             }
 
 
-class NoIgnoredFiles:
-    def __init__(self, dir):
-        self.dir = dir
-
-    def __enter__(self):
-        self._tmpdir_obj = tempfile.TemporaryDirectory()
-        tmpdir = self._tmpdir_obj.__enter__()
-        subprocess.run(
-            [
-                "rsync",
-                "--archive",
-                "--filter",
-                ":- .gitignore",
-                "--exclude",
-                ".git",
-                self.dir + "/",  # '/' - copy the contents
-                tmpdir,
-            ],
-            check=True,
-            capture_output=True,
-        )
-        return tmpdir
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        return self._tmpdir_obj.__exit__(exc_type, exc_val, exc_tb)
-
-
-def diff_dirs(dir_a, dir_b):
-    with NoIgnoredFiles(dir_a) as a, NoIgnoredFiles(dir_b) as b:
-        try:
-            # We run the command inside `cwd=a` so everything in 'a' is relative.
-            # We pass 'b' as a relative path from 'a' using os.path.relpath.
-            rel_b = os.path.relpath(b, start=a)
-
-            res = subprocess.run(
-                [
-                    "git",
-                    "diff",
-                    "--no-index",
-                    "--name-only",
-                    "--relative",  # Forces relative pathing in stats
-                    "--src-prefix=A/",  # Clean prefix for source
-                    "--dst-prefix=B/",  # Clean prefix for destination
-                    rel_b,  # Target B (path to the other temp dir)
-                    ".",  # Target A (current directory)
-                ],
-                text=True,
-                capture_output=True,
-                cwd=a,
-                check=True,  # Raises CalledProcessError on changes (exit code 1)
-            )
-            out = res.stdout.strip()
-        except subprocess.CalledProcessError as exc:
-            # Git returns exit code 1 when differences are found.
-            # We want to grab the stdout from that 'error'.
-            if exc.returncode == 1:
-                out = exc.stdout.strip()
-            else:
-                raise
-        return out
-
-
-def get_changed_files(dir_a, dir_b):
-    with NoIgnoredFiles(dir_a) as a, NoIgnoredFiles(dir_b) as b:
-        try:
-            res = subprocess.run(
-                [
-                    "git",
-                    "diff",
-                    "--no-index",
-                    "--name-only",
-                    a,
-                    b,
-                ],
-                text=True,
-                capture_output=True,
-                check=True,  # Raises CalledProcessError on changes (exit code 1)
-            )
-            out = res.stdout.strip()
-        except subprocess.CalledProcessError as exc:
-            # Git returns exit code 1 when differences are found.
-            # We want to grab the stdout from that 'error'.
-            if exc.returncode == 1:
-                out = exc.stdout.strip()
-            else:
-                raise
-        return out.splitlines()
-
-
-def show_diff(dir_a, dir_b):
-    with NoIgnoredFiles(dir_a) as a, NoIgnoredFiles(dir_b) as b:
-        rel_b = os.path.relpath(b, start=a)
-        subprocess.run(
-            [
-                "git",
-                "diff",
-                "--no-index",
-                "--relative",  # Forces relative pathing in stats
-                "--src-prefix=A/",  # Clean prefix for source
-                "--dst-prefix=B/",  # Clean prefix for destination
-                rel_b,  # Target B (path to the other temp dir)
-                ".",  # Target A (current directory)
-            ],
-            text=True,
-            cwd=a,
-            check=True,
-        )
-
-
 def run(*, model, ui):
     #
     # Init vars here
@@ -243,27 +112,23 @@ def run(*, model, ui):
     app_dir = os.path.realpath(".")
     conversation = model.conversation()
     devbox = DevBox(
-        app_dir.replace("/", "."),
-        "alpine",
+        volume=app_dir,
+        base_image="alpine",
     )
-    with ui.loading("Creating app dir"):
-        container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
-    toolbox = Toolbox(ui=ui, devbox=devbox, workdir=container_app_dir)
+    toolbox = Toolbox(ui=ui, devbox=devbox)
 
     #
     # Prepare the devbox
     #
-    with ui.loading("Checking if devbox exists"):
-        devbox_exists = devbox.exists()
-    if not devbox_exists:
-        with ui.loading("Creating devbox"):
-            devbox.create()
-    else:
-        with ui.loading("Starting devbox"):
-            devbox.start()
-    with ui.loading("Syncing container dir"):
-        with NoIgnoredFiles(app_dir) as stripped_app_dir:
-            devbox.sync_up(stripped_app_dir, container_app_dir)
+    with ui.catch():
+        with ui.loading("Checking if devbox exists"):
+            devbox_exists = devbox.exists()
+        if not devbox_exists:
+            with ui.loading("Creating devbox"):
+                devbox.create()
+        else:
+            with ui.loading("Starting devbox"):
+                devbox.start()
 
     #
     # Say hello
@@ -274,52 +139,18 @@ def run(*, model, ui):
     # Loop
     #
     while True:
-        # query = ui.prompt()
-        # if query is None:
-        #     break
-        # response = conversation.chain(
-        #     query,
-        #     tools=[toolbox],
-        #     system=SYSTEM_PROMPT.format(
-        #         project_map=utils.get_project_map(prepend_dummy_dir=False)
-        #     ),
-        # )
-        # answer = response.text()
-        toolbox.write_file("test_file", "contents")
-        answer = "file written"
-
-        with ui.loading("Syncing container dir"):
-            tmpdir = tempfile.TemporaryDirectory()
-            devbox.sync_down(container_app_dir, tmpdir.name)
-            ui.info("downed app dir", tmpdir.name)
-            ui.info("container app dir", container_app_dir)
-
-        with ui.catch():
-            changed_files = get_changed_files(app_dir, tmpdir.name)
-
-        ui.info("Changes", str(changed_files))
-        # show_diff(tmpdir.name, app_dir)
-
-        # with ui.catch():
-        #     ui.progress.stop()
-        #     subprocess.run(
-        #         [
-        #             "git",
-        #             "diff",
-        #             "--no-index",
-        #             app_dir,
-        #             tmpdir.name,
-        #             "--diff-filter=AM",
-        #         ],
-        #     )
-        #     ui.progress.start()
+        query = ui.prompt()
+        if query is None:
+            break
+        response = conversation.chain(
+            query,
+            tools=[toolbox],
+            system=SYSTEM_PROMPT.format(
+                project_map=utils.get_project_map(prepend_dummy_dir=False)
+            ),
+        )
+        answer = response.text()
 
         ui.answer(answer)
 
-        from time import sleep
-
-        sleep(100000000)
-
-        # if git_stat.returncode == 1:
-        # ui.info("Changes", git_stat.stdout.strip())
     ui.bye()
