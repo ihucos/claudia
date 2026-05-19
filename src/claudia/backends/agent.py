@@ -213,22 +213,25 @@ def run(*, model, ui):
 
         with ui.loading("Syncing container dir"):
             tmpdir = tempfile.TemporaryDirectory()
-            # ui.info("downed app dir", tmpdir.name)
             devbox.sync_down(container_app_dir, tmpdir.name)
+            ui.info("downed app dir", tmpdir.name)
 
             with ui.catch():
+                # git --git-dir=$HOME/claudia/.git --work-tree=/var/folders/2b/d63yqlt92q1g_sjk_56nm1zm0000gn/T/tmpbfmgk6jv/claudia diff
                 git_stat = subprocess.run(
                     [
                         "git",
                         "diff",
                         app_dir,
                         tmpdir.name,
+                        "--exit-code",
+                        "--no-index",
                         "--stat",
                         # "--diff-filter=AM",
                     ],
                     text=True,
                     capture_output=True,
-                    cwd=tmpdir.name,
+                    cwd=app_dir,
                 )
 
             # with ui.catch():
@@ -247,6 +250,6 @@ def run(*, model, ui):
 
         ui.answer(answer)
 
-        if git_stat.returncode == 1:
-            ui.info("Changes", git_stat.stdout.strip())
+        # if git_stat.returncode == 1:
+        ui.info("Changes", git_stat.stdout.strip())
     ui.bye()
