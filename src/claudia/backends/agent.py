@@ -72,24 +72,17 @@ class DevBox:
             capture_output=True,
             text=True,
         )
-        # return {
-        #     "stdout": r.stdout.decode(),
-        #     "stderr": r.stderr.decode(),
-        #     "exit_code": r.returncode,
-        # }
 
     def sync_up(self, src, dst):
-        dst_path = f"{dst}/." if not dst.endswith("/.") else dst
         subprocess.run(
-            ["docker", "cp", src, f"{self.name}:{dst_path}"],
+            ["docker", "cp", f"{src}/.", f"{self.name}:{dst}/."],
             check=True,
             capture_output=True,
         )
 
     def sync_down(self, src, dst):
-        src_path = f"{src}/." if not src.endswith("/.") else src
         subprocess.run(
-            ["docker", "cp", f"{self.name}:{src_path}", dst],
+            ["docker", "cp", f"{self.name}:{src}/.", dst],
             check=True,
             capture_output=True,
         )
@@ -149,7 +142,7 @@ class NoIgnoredFiles:
                 ":- .gitignore",
                 "--exclude",
                 ".git",
-                self.dir,
+                self.dir + "/",  # '/' - copy the contents
                 tmpdir,
             ],
             check=True,
@@ -163,18 +156,37 @@ class NoIgnoredFiles:
 
 def diff_dirs(dir_a, dir_b):
     with NoIgnoredFiles(dir_a) as a, NoIgnoredFiles(dir_b) as b:
-        return subprocess.run(
-            [
-                "git",
-                "--no-index",
-                "diff",
-                a,
-                b,
-                "--stat",
-            ],
-            text=True,
-            capture_output=True,
-        ).stdout.strip()
+        try:
+            # We run the command inside `cwd=a` so everything in 'a' is relative.
+            # We pass 'b' as a relative path from 'a' using os.path.relpath.
+            rel_b = os.path.relpath(b, start=a)
+
+            res = subprocess.run(
+                [
+                    "git",
+                    "diff",
+                    "--no-index",
+                    "--stat",
+                    "--relative",  # Forces relative pathing in stats
+                    "--src-prefix=A/",  # Clean prefix for source
+                    "--dst-prefix=B/",  # Clean prefix for destination
+                    rel_b,  # Target B (path to the other temp dir)
+                    ".",  # Target A (current directory)
+                ],
+                text=True,
+                capture_output=True,
+                cwd=a,
+                check=True,  # Raises CalledProcessError on changes (exit code 1)
+            )
+            out = res.stdout.strip()
+        except subprocess.CalledProcessError as exc:
+            # Git returns exit code 1 when differences are found.
+            # We want to grab the stdout from that 'error'.
+            if exc.returncode == 1:
+                out = exc.stdout.strip()
+            else:
+                raise
+        return out
 
 
 def run(*, model, ui):
@@ -215,17 +227,19 @@ def run(*, model, ui):
     # Loop
     #
     while True:
-        query = ui.prompt()
-        if query is None:
-            break
-        response = conversation.chain(
-            query,
-            tools=[toolbox],
-            system=SYSTEM_PROMPT.format(
-                project_map=utils.get_project_map(prepend_dummy_dir=False)
-            ),
-        )
-        answer = response.text()
+        # query = ui.prompt()
+        # if query is None:
+        #     break
+        # response = conversation.chain(
+        #     query,
+        #     tools=[toolbox],
+        #     system=SYSTEM_PROMPT.format(
+        #         project_map=utils.get_project_map(prepend_dummy_dir=False)
+        #     ),
+        # )
+        # answer = response.text()
+        toolbox.write_file("test_file", "contents")
+        answer = "file written"
 
         with ui.loading("Syncing container dir"):
             tmpdir = tempfile.TemporaryDirectory()
@@ -234,7 +248,7 @@ def run(*, model, ui):
             ui.info("container app dir", container_app_dir)
 
             with ui.catch():
-                diff = diff_dirs(app_dir, tmpdir.name)
+                diff = diff_dirs(tmpdir.name, app_dir)
 
             ui.info("Changes", diff)
 
@@ -253,6 +267,10 @@ def run(*, model, ui):
             #     ui.progress.start()
 
         ui.answer(answer)
+
+        from time import sleep
+
+        sleep(100000000)
 
         # if git_stat.returncode == 1:
         # ui.info("Changes", git_stat.stdout.strip())
