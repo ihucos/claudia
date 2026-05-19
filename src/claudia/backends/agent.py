@@ -111,7 +111,7 @@ class Toolbox(llm.Toolbox):
                 return {"error": ret.stderr}
 
     def read_file(self, filename: str):
-        with self.ui.loading(f"Reading {filename}..."):
+        with self.ui.loading(f"Reading {filename}"):
             ret = self.devbox.run(
                 ["sh", "-c", 'cat "$0"', filename],
                 workdir=self.workdir,
@@ -132,6 +132,33 @@ class Toolbox(llm.Toolbox):
                 "stderr": ret.stderr,
                 "exit_code": ret.returncode,
             }
+
+
+class NoIgnoredFiles:
+    def __init__(self, dir):
+        self.dir = dir
+
+    def __enter__(self):
+        self._tmpdir_obj = tempfile.TemporaryDirectory()
+        tmpdir = self._tmpdir_obj.__enter__()
+        subprocess.run(
+            [
+                "rsync",
+                "--archive",
+                "--filter",
+                ":- .gitignore",
+                "--exclude",
+                ".git",
+                self.dir,
+                tmpdir,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return tmpdir
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._tmpdir_obj.__exit__(exc_type, exc_val, exc_tb)
 
 
 def run(*, model, ui):
@@ -158,7 +185,8 @@ def run(*, model, ui):
         with ui.loading("Starting devbox..."):
             devbox.start()
     with ui.loading("Syncing container dir..."):
-        devbox.sync_up(app_dir, container_app_dir)
+        with NoIgnoredFiles(app_dir) as stripped_app_dir:
+            devbox.sync_up(stripped_app_dir, container_app_dir)
 
     #
     # Say hello
@@ -183,7 +211,7 @@ def run(*, model, ui):
         answer = response.text()
         with ui.loading("Syncing container dir..."):
             tmpdir = tempfile.TemporaryDirectory()
-            ui.debug(tmpdir.name)
+            ui.info("downed app dir", tmpdir.name)
             devbox.sync_down(container_app_dir, tmpdir.name)
 
             ui.progress.stop()

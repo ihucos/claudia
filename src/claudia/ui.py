@@ -82,8 +82,10 @@ class UI:
             self.console.print(text, style="dim")
             self.progress.start()
 
-    def info(self, text):
-        self.console.print(Panel.fit(Text.from_markup(text), title="Info"))
+    def info(self, header, text):
+        self.progress.stop()
+        self.console.print(Panel.fit(Text.from_markup(text), title=header))
+        self.progress.start()
 
     def handle_exception(self):
         return HandleException(console=self.console, spinner=self)
@@ -93,7 +95,7 @@ class UI:
 
     def answer(self, answer):
         self.progress.stop()
-        self.console.print(f"[blue]Claudia >[/blue] {answer}")
+        self.console.print(f"[magenta]Claudia >[/magenta] {answer}")
         self.progress.start()
 
     def prompt(self):
@@ -101,7 +103,7 @@ class UI:
         try:
             from prompt_toolkit.formatted_text import HTML
 
-            p = prompt(HTML("<ansimagenta>You > </ansimagenta>"), history=self.history)
+            p = prompt(HTML("<ansiblue>You > </ansiblue>"), history=self.history)
         except (EOFError, KeyboardInterrupt):
             return None
         self.loading("")
