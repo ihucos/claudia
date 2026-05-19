@@ -202,6 +202,7 @@ def run(*, model, ui):
         query = ui.prompt()
         if query is None:
             break
+        ui.loading("Thinking...")
         response = conversation.chain(
             query,
             tools=[toolbox],
@@ -209,8 +210,9 @@ def run(*, model, ui):
                 project_map=utils.get_project_map(prepend_dummy_dir=False)
             ),
         )
-
         answer = response.text()
+        ui.answer(answer)
+
         with ui.loading("Syncing container dir..."):
             tmpdir = tempfile.TemporaryDirectory()
             # ui.info("downed app dir", tmpdir.name)
@@ -222,23 +224,21 @@ def run(*, model, ui):
                         "git",
                         "diff",
                         "--no-index",
-                        "--relative",
-                        tmpdir.name,
                         app_dir,
                         tmpdir.name,
                         "--stat",
                         "--diff-filter=AM",
                     ],
-                    check=True,
                     text=True,
                     capture_output=True,
-                ).stdout.strip()
+                    cwd=tmpdir.name,
+                )
 
-            ui.info("changed files", git_stat)
-
-            ui.progress.stop()
+            if git_stat.returncode == 1:
+                ui.info("Review with (C-r):", git_stat.stdout.strip())
 
             with ui.catch():
+                ui.progress.stop()
                 subprocess.run(
                     [
                         "git",
@@ -250,8 +250,6 @@ def run(*, model, ui):
                     ],
                 )
                 ui.progress.start()
-
-        ui.answer(answer)
     ui.bye()
 
 

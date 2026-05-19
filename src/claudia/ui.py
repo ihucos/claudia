@@ -26,6 +26,9 @@ class UICatch:
                 self.ui.progress.stop()
                 self.ui.console.print(f"stodout: {exc.stdout}", markup=False)
                 self.ui.console.print(f"stderr: {exc.stderr}", markup=False)
+                self.ui.console.print(
+                    f"claudia error: {exc}", style="bold red", markup=False
+                )
                 sys.exit(1)
             except Exception as exc:
                 self.ui.progress.stop()
