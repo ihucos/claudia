@@ -79,9 +79,9 @@ class DevBox:
         # }
 
     def sync_up(self, src, dst):
-        src_path = f"{src}/." if not src.endswith("/.") else src
+        dst_path = f"{dst}/." if not dst.endswith("/.") else dst
         subprocess.run(
-            ["docker", "cp", src_path, f"{self.name}:{dst}"],
+            ["docker", "cp", src, f"{self.name}:{dst_path}"],
             check=True,
             capture_output=True,
         )
@@ -161,6 +161,22 @@ class NoIgnoredFiles:
         return self._tmpdir_obj.__exit__(exc_type, exc_val, exc_tb)
 
 
+def diff_dirs(dir_a, dir_b):
+    with NoIgnoredFiles(dir_a) as a, NoIgnoredFiles(dir_b) as b:
+        return subprocess.run(
+            [
+                "git",
+                "--no-index",
+                "diff",
+                a,
+                b,
+                "--stat",
+            ],
+            text=True,
+            capture_output=True,
+        ).stdout.strip()
+
+
 def run(*, model, ui):
     #
     # Init vars here
@@ -215,24 +231,12 @@ def run(*, model, ui):
             tmpdir = tempfile.TemporaryDirectory()
             devbox.sync_down(container_app_dir, tmpdir.name)
             ui.info("downed app dir", tmpdir.name)
+            ui.info("container app dir", container_app_dir)
 
             with ui.catch():
-                # git --git-dir=$HOME/claudia/.git --work-tree=/var/folders/2b/d63yqlt92q1g_sjk_56nm1zm0000gn/T/tmpbfmgk6jv/claudia diff
-                git_stat = subprocess.run(
-                    [
-                        "git",
-                        "diff",
-                        app_dir,
-                        tmpdir.name,
-                        "--exit-code",
-                        "--no-index",
-                        "--stat",
-                        # "--diff-filter=AM",
-                    ],
-                    text=True,
-                    capture_output=True,
-                    cwd=app_dir,
-                )
+                diff = diff_dirs(app_dir, tmpdir.name)
+
+            ui.info("Changes", diff)
 
             # with ui.catch():
             #     ui.progress.stop()
@@ -251,5 +255,5 @@ def run(*, model, ui):
         ui.answer(answer)
 
         # if git_stat.returncode == 1:
-        ui.info("Changes", git_stat.stdout.strip())
+        # ui.info("Changes", git_stat.stdout.strip())
     ui.bye()
