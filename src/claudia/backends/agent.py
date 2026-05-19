@@ -178,7 +178,9 @@ def run(*, model, ui):
     #
     # Prepare the devbox
     #
-    if not devbox.exists():
+    with ui.loading("Checking if devbox exists..."):
+        devbox_exists = devbox.exists()
+    if not devbox_exists:
         with ui.loading("Creating devbox..."):
             devbox.create()
     else:
@@ -211,21 +213,43 @@ def run(*, model, ui):
         answer = response.text()
         with ui.loading("Syncing container dir..."):
             tmpdir = tempfile.TemporaryDirectory()
-            ui.info("downed app dir", tmpdir.name)
+            # ui.info("downed app dir", tmpdir.name)
             devbox.sync_down(container_app_dir, tmpdir.name)
 
+            with ui.catch():
+                git_stat = subprocess.run(
+                    [
+                        "git",
+                        "diff",
+                        "--no-index",
+                        "--relative",
+                        tmpdir.name,
+                        app_dir,
+                        tmpdir.name,
+                        "--stat",
+                        "--diff-filter=AM",
+                    ],
+                    check=True,
+                    text=True,
+                    capture_output=True,
+                ).stdout.strip()
+
+            ui.info("changed files", git_stat)
+
             ui.progress.stop()
-            subprocess.run(
-                [
-                    "git",
-                    "diff",
-                    "--no-index",
-                    app_dir,
-                    tmpdir.name,
-                    "--diff-filter=AM",
-                ],
-            )
-            ui.progress.start()
+
+            with ui.catch():
+                subprocess.run(
+                    [
+                        "git",
+                        "diff",
+                        "--no-index",
+                        app_dir,
+                        tmpdir.name,
+                        "--diff-filter=AM",
+                    ],
+                )
+                ui.progress.start()
 
         ui.answer(answer)
     ui.bye()

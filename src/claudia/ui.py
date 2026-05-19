@@ -11,23 +11,27 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 
 
-class HandleException:
-    def __init__(self, *, console, spinner):
-        self.console = console
-        self.spinner = spinner
+class UICatch:
+    def __init__(self, *, ui):
+        self.ui = ui
+
+    def __enter__(self):
+        return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
             try:
                 raise
             except subprocess.CalledProcessError as exc:
-                self.ui.stop()
-                self.console.print("stodout:", exc.stdout)
-                self.console.print("stderr:", exc.stderr)
-                self.console.print("claudia error:", exc, style="bold red")
+                self.ui.progress.stop()
+                self.ui.console.print(f"stodout: {exc.stdout}", markup=False)
+                self.ui.console.print(f"stderr: {exc.stderr}", markup=False)
                 sys.exit(1)
-            except OSError as exc:
-                self.console.print("claudia error:", exc, style="bold red")
+            except Exception as exc:
+                self.ui.progress.stop()
+                self.ui.console.print(
+                    f"claudia error: {exc}", style="bold red", markup=False
+                )
                 sys.exit(1)
 
 
@@ -87,8 +91,8 @@ class UI:
         self.console.print(Panel.fit(Text.from_markup(text), title=header))
         self.progress.start()
 
-    def handle_exception(self):
-        return HandleException(console=self.console, spinner=self)
+    def catch(self):
+        return UICatch(ui=self)
 
     def prompt_suggest_diff(self, *, diff, on_accept):
         pass
