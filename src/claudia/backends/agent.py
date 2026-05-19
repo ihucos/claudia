@@ -166,7 +166,7 @@ def diff_dirs(dir_a, dir_b):
                     "git",
                     "diff",
                     "--no-index",
-                    "--stat",
+                    "--name-only",
                     "--relative",  # Forces relative pathing in stats
                     "--src-prefix=A/",  # Clean prefix for source
                     "--dst-prefix=B/",  # Clean prefix for destination
@@ -187,6 +187,53 @@ def diff_dirs(dir_a, dir_b):
             else:
                 raise
         return out
+
+
+def get_changed_files(dir_a, dir_b):
+    with NoIgnoredFiles(dir_a) as a, NoIgnoredFiles(dir_b) as b:
+        try:
+            res = subprocess.run(
+                [
+                    "git",
+                    "diff",
+                    "--no-index",
+                    "--name-only",
+                    a,
+                    b,
+                ],
+                text=True,
+                capture_output=True,
+                check=True,  # Raises CalledProcessError on changes (exit code 1)
+            )
+            out = res.stdout.strip()
+        except subprocess.CalledProcessError as exc:
+            # Git returns exit code 1 when differences are found.
+            # We want to grab the stdout from that 'error'.
+            if exc.returncode == 1:
+                out = exc.stdout.strip()
+            else:
+                raise
+        return out.splitlines()
+
+
+def show_diff(dir_a, dir_b):
+    with NoIgnoredFiles(dir_a) as a, NoIgnoredFiles(dir_b) as b:
+        rel_b = os.path.relpath(b, start=a)
+        subprocess.run(
+            [
+                "git",
+                "diff",
+                "--no-index",
+                "--relative",  # Forces relative pathing in stats
+                "--src-prefix=A/",  # Clean prefix for source
+                "--dst-prefix=B/",  # Clean prefix for destination
+                rel_b,  # Target B (path to the other temp dir)
+                ".",  # Target A (current directory)
+            ],
+            text=True,
+            cwd=a,
+            check=True,
+        )
 
 
 def run(*, model, ui):
@@ -247,24 +294,25 @@ def run(*, model, ui):
             ui.info("downed app dir", tmpdir.name)
             ui.info("container app dir", container_app_dir)
 
-            with ui.catch():
-                diff = diff_dirs(tmpdir.name, app_dir)
+        with ui.catch():
+            changed_files = get_changed_files(app_dir, tmpdir.name)
 
-            ui.info("Changes", diff)
+        ui.info("Changes", str(changed_files))
+        # show_diff(tmpdir.name, app_dir)
 
-            # with ui.catch():
-            #     ui.progress.stop()
-            #     subprocess.run(
-            #         [
-            #             "git",
-            #             "diff",
-            #             "--no-index",
-            #             app_dir,
-            #             tmpdir.name,
-            #             "--diff-filter=AM",
-            #         ],
-            #     )
-            #     ui.progress.start()
+        # with ui.catch():
+        #     ui.progress.stop()
+        #     subprocess.run(
+        #         [
+        #             "git",
+        #             "diff",
+        #             "--no-index",
+        #             app_dir,
+        #             tmpdir.name,
+        #             "--diff-filter=AM",
+        #         ],
+        #     )
+        #     ui.progress.start()
 
         ui.answer(answer)
 
