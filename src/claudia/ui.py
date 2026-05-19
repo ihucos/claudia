@@ -54,7 +54,10 @@ class LoadingCtx:
 class UI:
     def __init__(self, *, history_file, debug=False):
         self.progress = Progress(
-            SpinnerColumn(), TextColumn("{task.description}"), transient=True
+            TextColumn("Claudia >", style="magenta"),
+            TextColumn("{task.description}", style="cyan"),
+            SpinnerColumn("simpleDots", style="cyan"),
+            transient=True,
         )
         self.task_id = self.progress.add_task("", total=None)
         self.console = Console()
@@ -80,7 +83,7 @@ class UI:
         )
 
     def loading(self, text):
-        self.progress.update(self.task_id, description=f"[cyan]{text}[/cyan]")
+        self.progress.update(self.task_id, description=text)
         return LoadingCtx(self.progress.stop)
 
     def debug(self, text):

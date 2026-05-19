@@ -102,7 +102,7 @@ class Toolbox(llm.Toolbox):
         self.workdir = workdir
 
     def write_file(self, filename: str, content: str):
-        with self.ui.loading(f"Writing {filename}..."):
+        with self.ui.loading(f"Writing {filename}"):
             ret = self.devbox.run(
                 ["sh", "-c", 'echo "$0" > "$1"', content, filename],
                 workdir=self.workdir,
@@ -171,22 +171,22 @@ def run(*, model, ui):
         app_dir.replace("/", "."),
         "alpine",
     )
-    with ui.loading("Creating app dir..."):
+    with ui.loading("Creating app dir"):
         container_app_dir = devbox.run(["mktemp", "-d"]).stdout.strip()
     toolbox = Toolbox(ui=ui, devbox=devbox, workdir=container_app_dir)
 
     #
     # Prepare the devbox
     #
-    with ui.loading("Checking if devbox exists..."):
+    with ui.loading("Checking if devbox exists"):
         devbox_exists = devbox.exists()
     if not devbox_exists:
-        with ui.loading("Creating devbox..."):
+        with ui.loading("Creating devbox"):
             devbox.create()
     else:
-        with ui.loading("Starting devbox..."):
+        with ui.loading("Starting devbox"):
             devbox.start()
-    with ui.loading("Syncing container dir..."):
+    with ui.loading("Syncing container dir"):
         with NoIgnoredFiles(app_dir) as stripped_app_dir:
             devbox.sync_up(stripped_app_dir, container_app_dir)
 
@@ -202,7 +202,6 @@ def run(*, model, ui):
         query = ui.prompt()
         if query is None:
             break
-        ui.loading("Thinking...")
         response = conversation.chain(
             query,
             tools=[toolbox],
@@ -211,9 +210,8 @@ def run(*, model, ui):
             ),
         )
         answer = response.text()
-        ui.answer(answer)
 
-        with ui.loading("Syncing container dir..."):
+        with ui.loading("Syncing container dir"):
             tmpdir = tempfile.TemporaryDirectory()
             # ui.info("downed app dir", tmpdir.name)
             devbox.sync_down(container_app_dir, tmpdir.name)
@@ -250,11 +248,13 @@ def run(*, model, ui):
                     ],
                 )
                 ui.progress.start()
+
+        ui.answer(answer)
     ui.bye()
 
 
 # def get_ansi_diff_info():
-#     with spinner("Checking changes..."):
+#     with spinner("Checking changes"):
 #         current_branch = subprocess.run(
 #             ["git", "branch", "--show-current"], text=True, capture_output=True
 #         ).stdout.strip()
