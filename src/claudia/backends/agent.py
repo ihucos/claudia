@@ -221,176 +221,32 @@ def run(*, model, ui):
                     [
                         "git",
                         "diff",
-                        "--no-index",
                         app_dir,
                         tmpdir.name,
                         "--stat",
-                        "--diff-filter=AM",
+                        # "--diff-filter=AM",
                     ],
                     text=True,
                     capture_output=True,
                     cwd=tmpdir.name,
                 )
 
-            if git_stat.returncode == 1:
-                ui.info("Review with (C-r):", git_stat.stdout.strip())
-
-            with ui.catch():
-                ui.progress.stop()
-                subprocess.run(
-                    [
-                        "git",
-                        "diff",
-                        "--no-index",
-                        app_dir,
-                        tmpdir.name,
-                        "--diff-filter=AM",
-                    ],
-                )
-                ui.progress.start()
+            # with ui.catch():
+            #     ui.progress.stop()
+            #     subprocess.run(
+            #         [
+            #             "git",
+            #             "diff",
+            #             "--no-index",
+            #             app_dir,
+            #             tmpdir.name,
+            #             "--diff-filter=AM",
+            #         ],
+            #     )
+            #     ui.progress.start()
 
         ui.answer(answer)
+
+        if git_stat.returncode == 1:
+            ui.info("Changes", git_stat.stdout.strip())
     ui.bye()
-
-
-# def get_ansi_diff_info():
-#     with spinner("Checking changes"):
-#         current_branch = subprocess.run(
-#             ["git", "branch", "--show-current"], text=True, capture_output=True
-#         ).stdout.strip()
-#
-#         commits = subprocess.run(
-#             ["git", "log", "--oneline", "--color=always", f"HEAD...{branch}"],
-#             text=True,
-#             capture_output=True,
-#             check=True,
-#         ).stdout.strip()
-#
-#         # Force color on stat so we get the green '+' and red '-' graphs automatically!
-#         stat = subprocess.run(
-#             ["git", "diff", "--stat", "--color=always", f"HEAD...{branch}"],
-#             text=True,
-#             capture_output=True,
-#             check=True,
-#         ).stdout.strip()
-#
-#         diff = subprocess.run(
-#             ["git", "diff", "--color=always", f"HEAD...{branch}"],
-#             text=True,
-#             capture_output=True,
-#             check=True,
-#         ).stdout.strip()
-#
-#     return {
-#         "current_branch": current_branch,
-#         "commits": commits,
-#         "stat": stat,
-#         "diff": diff,
-#     }
-#
-#
-# def request_merge():
-#     with spinner:
-#         diff_info = get_ansi_diff_info()
-#         with console.pager(styles=True):
-#             console.print(
-#                 Panel(
-#                     f"[bold blue]Agent is requesting a merge[bold blue]: {branch} -> {diff_info['current_branch']}",
-#                     title="Merge Request",
-#                     border_style="green",
-#                     title_align="left",
-#                     padding=(1, 2),
-#                 )
-#             )
-#             console.print(
-#                 Panel(
-#                     Text.from_ansi(diff_info["commits"]),
-#                     title="Commits",
-#                     border_style="yellow",
-#                     title_align="left",
-#                     padding=(1, 2),
-#                 )
-#             )
-#             console.print(
-#                 Panel(
-#                     Text.from_ansi(diff_info["stat"]),
-#                     title="Files",
-#                     border_style="cyan",
-#                     title_align="left",
-#                     padding=(1, 2),
-#                 )
-#             )
-#             console.print(
-#                 Panel(
-#                     Text.from_ansi(diff_info["diff"]),
-#                     title="Diff",
-#                     border_style="magenta",
-#                     title_align="left",
-#                     padding=(1, 1),
-#                 )
-#             )
-#         console.print()
-#
-#         apply_changes = Confirm.ask(
-#             f"[green]Merge {branch} into {diff_info['current_branch']}?[/green]",
-#             default=False,
-#         )
-#         if apply_changes:
-#             subprocess.run(["git", "merge", branch], check=True, cwd=git_dir)
-#             with spinner:
-#                 console.print("[green]Merged[/green]")
-#         else:
-#             with spinner:
-#                 console.print("[red]Not Merged[/red]")
-#
-#
-#
-#
-# def main():
-#     try:
-#         create_worktree(workdir)
-#         with spinner:
-#             console.print(f"[cyan]workdir: {workdir}[/cyan]")
-#         spinner("Clouding...")
-#         conversation = model.conversation()
-#         history = FileHistory(os.path.expanduser("~/.klaus_history"))
-#         with spinner:
-#             console.print("[cyan]Claudia> Hello, how can I help.")
-#         while True:
-#             with spinner:
-#                 user_input = prompt(
-#                     "You> ",
-#                     history=history,
-#                     prompt_continuation="... ",
-#                 )
-#
-#             if user_input == "breakpoint":
-#                 with spinner:
-#                     breakpoint()
-#                 continue
-#
-#             response = conversation.chain(
-#                 user_input,
-#                 after_call=after_call,
-#                 before_call=before_call,
-#                 tools=[Toolbox()],
-#                 system=SYSTEM_PROMPT.format(
-#                     project_map=utils.get_project_map(prepend_dummy_dir=False)
-#                 ),
-#             )
-#
-#             # for token in response:
-#             #     pass
-#             # console.print(f"[cyan]{token}", end="")
-#             # wait
-#             response.text()
-#
-#             last_response = response._responses[-1]
-#             with spinner:
-#                 if not last_response.text():
-#                     console.print("[cyan]Claudia> ...")
-#                 else:
-#                     console.print(f"[cyan]Claudia> {last_response.text()}", end="")
-#     except (KeyboardInterrupt, EOFError):
-#         spinner.stop()
-#         console.print("[cyan]Claudia> Goodbye")
