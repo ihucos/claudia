@@ -16,6 +16,7 @@ export DEEPSEEK_API_KEY=your_key_here
 
 ```bash
 claudia
+clauda agent  # For a classic agent experience
 ```
 
 ## Why?
