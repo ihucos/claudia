@@ -86,12 +86,20 @@ class Toolbox(llm.Toolbox):
         self.devbox = devbox
         self.workdir = workdir
 
+    def _check_filename(self, filename):
+        if ".." in filename:
+            raise ValueError("Filename contains '..'")
+        if filename.startswith("/"):
+            raise ValueError("Filename starts with '/'")
+
     def write_file(self, filename: str, content: str):
+        self._check_filename(filename)
         with self.ui.loading(f"Writing {filename}"):
             with open(os.path.join(self.workdir, filename), "w") as f:
                 f.write(content)
 
     def read_file(self, filename: str):
+        self._check_filename(filename)
         with self.ui.loading(f"Reading {filename}"):
             with open(os.path.join(self.workdir, filename), "r") as f:
                 return f.read()

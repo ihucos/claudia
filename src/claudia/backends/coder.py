@@ -29,6 +29,7 @@ List files thath are relevant to the task.
 
 ## Notes
 - Emit the full file path including the '{marker_dir}' prefix.
+- Even when the user mentions a specific file, list all files that are possibly relevant.
 """
 
 PROMPT_IMPLEMENT = """
