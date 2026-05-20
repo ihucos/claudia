@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.text import Text
 from rich.panel import Panel
 from rich.prompt import Confirm
+from rich.syntax import Syntax
 
 
 class UICatch:
@@ -24,11 +25,19 @@ class UICatch:
                 raise
             except subprocess.CalledProcessError as exc:
                 self.ui.progress.stop()
-                self.ui.console.print(f"stodout: {exc.stdout}", markup=False)
-                self.ui.console.print(f"stderr: {exc.stderr}", markup=False)
                 self.ui.console.print(
                     f"claudia error: {exc}", style="bold red", markup=False
                 )
+                if exc.stdout.strip():
+                    self.ui.console.print(
+                        Panel.fit(Text.from_ansi(exc.stdout.strip()), title="stdout"),
+                        markup=True,
+                    )
+                if exc.stderr.strip():
+                    self.ui.console.print(
+                        Panel.fit(Text.from_ansi(exc.stderr.strip()), title="stderr"),
+                        markup=True,
+                    )
                 sys.exit(1)
             except Exception as exc:
                 self.ui.progress.stop()
@@ -100,8 +109,16 @@ class UI:
     def catch(self):
         return UICatch(ui=self)
 
-    def prompt_suggest_diff(self, *, diff, on_accept):
-        pass
+    def ask_diff(self, diff):
+        # Show the diff in a pager, with synatax hilight
+        # and line numbers
+        self.progress.stop()
+        with self.console.pager(styles=True):
+            self.console.print(Syntax(diff, "diff", theme="ansi_dark"))
+
+        ask = Confirm.ask("Apply changes?", default=False)
+        self.progress.start()
+        return ask
 
     def answer(self, answer):
         self.progress.stop()

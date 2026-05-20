@@ -92,7 +92,7 @@ class Toolbox(llm.Toolbox):
 
     def write_file(self, filename: str, content: str):
         with self.ui.loading(f"Writing {filename}"):
-            with open(os.path.join(self.workdir, filename), filename, "w") as f:
+            with open(os.path.join(self.workdir, filename), "w") as f:
                 f.write(content)
 
     def read_file(self, filename: str):
@@ -151,30 +151,65 @@ def init_workdir(app_dir, workdir):
     return workdir
 
 
-def get_workdir_diffs(workdir):
-    try:
-        shortstat = subprocess.run(
-            ["git", "diff", "--shortstat"],
-            cwd=workdir,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        if exc.returncode != 1:
-            raise
+# def get_workdir_diffs(workdir):
+#     subprocess.run(
+#         ["git", "add", "."],
+#         cwd=workdir,
+#         check=True,
+#         capture_output=True,
+#     )
+#     try:
+#         stat = subprocess.run(
+#             ["git", "diff", "--stat", "--staged"],
+#             cwd=workdir,
+#             check=True,
+#             capture_output=True,
+#             text=True,
+#         )
+#     except subprocess.CalledProcessError as exc:
+#         if exc.returncode != 1:
+#             raise
+#
+#     diff = subprocess.run(
+#         ["git", "diff", "--staged"],
+#         cwd=workdir,
+#         check=True,
+#         capture_output=True,
+#         text=True,
+#     )
+#     return {
+#         "stat": stat.stdout.strip(),
+#         "diff": diff.stdout.strip(),
+#     }
 
-    diff = subprocess.run(
-        ["git", "diff"],
+
+def get_diff(workdir):
+    subprocess.run(
+        ["git", "add", "."],
         cwd=workdir,
         check=True,
         capture_output=True,
         text=True,
     )
-    return {
-        "shortstat": shortstat.stdout.strip(),
-        "diff": diff.stdout.strip(),
-    }
+    diff = subprocess.run(
+        ["git", "diff", "--staged"],
+        cwd=workdir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return diff.stdout
+
+
+def apply_diff(dir, diff):
+    subprocess.run(
+        ["git", "apply", "-"],
+        cwd=dir,
+        check=True,
+        capture_output=True,
+        text=True,
+        input=diff,
+    )
 
 
 def run(*, model, ui):
@@ -232,7 +267,14 @@ def run(*, model, ui):
         # )
         # answer = response.text()
         answer = toolbox.run(query, step_description="Running query")
+        toolbox.write_file("test_file", "asdf\nasdf")
 
         ui.answer(answer)
+        with ui.catch():
+            diff = get_diff(workdir)
+
+        if ui.ask_diff(diff):
+            with ui.catch():
+                apply_diff(workdir, diff)
 
     ui.bye()
