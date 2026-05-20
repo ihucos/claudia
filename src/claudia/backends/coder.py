@@ -1,6 +1,6 @@
 from time import sleep
 
-from ... import utils
+from .. import utils
 import re
 import os
 from collections import defaultdict
