@@ -1,6 +1,10 @@
+import difflib
 import subprocess
 import os
 import llm
+from rich.text import Text
+from rich.panel import Panel
+from rich.syntax import Syntax
 
 from .. import utils
 
@@ -79,6 +83,33 @@ class Toolbox(llm.Toolbox):
 
     def write_file(self, filename: str, content: str):
         with self.ui.loading(f"Writing {filename}"):
+            # Read existing content (if any) to compute diff
+            old_content = ""
+            try:
+                with open(filename, "r") as f:
+                    old_content = f.read()
+            except FileNotFoundError:
+                old_content = ""
+
+            # Compute the diff
+            diff_lines = list(
+                difflib.unified_diff(
+                    old_content.splitlines(keepends=True),
+                    content.splitlines(keepends=True),
+                    fromfile=filename,
+                    tofile=filename,
+                )
+            )
+            if diff_lines:
+                diff_text = "".join(diff_lines)
+                self.ui.progress.stop()
+                syntax = Syntax(diff_text, "diff", theme="ansi_dark", line_numbers=True)
+                self.ui.console.print(Panel(syntax, title="Diff"))
+                self.ui.progress.start()
+            else:
+                self.ui.info("Diff", f"No changes to {filename}")
+
+            # Write the file
             with open(filename, "w") as f:
                 f.write(content)
 
