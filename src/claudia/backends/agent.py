@@ -5,6 +5,7 @@ import llm
 from rich.text import Text
 from rich.panel import Panel
 from rich.syntax import Syntax
+import tempfile
 
 from .. import utils
 
@@ -68,59 +69,40 @@ class DevBox:
             capture_output=True,
         )
 
-    def run(self, cmd):
+    def run(self, cmd, *, workdir="/"):
         return subprocess.run(
-            ["docker", "exec", "--workdir", self.volume, self.name] + cmd,
+            [
+                "docker",
+                "exec",
+                "--workdir",
+                workdir,
+                self.name,
+            ]
+            + cmd,
             capture_output=True,
             text=True,
         )
 
 
 class Toolbox(llm.Toolbox):
-    def __init__(self, *, ui, devbox):
+    def __init__(self, *, ui, devbox, workdir):
         self.ui = ui
         self.devbox = devbox
+        self.workdir = workdir
 
     def write_file(self, filename: str, content: str):
         with self.ui.loading(f"Writing {filename}"):
-            # Read existing content (if any) to compute diff
-            old_content = ""
-            try:
-                with open(filename, "r") as f:
-                    old_content = f.read()
-            except FileNotFoundError:
-                old_content = ""
-
-            # Compute the diff
-            diff_lines = list(
-                difflib.unified_diff(
-                    old_content.splitlines(keepends=True),
-                    content.splitlines(keepends=True),
-                    fromfile=filename,
-                    tofile=filename,
-                )
-            )
-            if diff_lines:
-                diff_text = "".join(diff_lines)
-                self.ui.progress.stop()
-                syntax = Syntax(diff_text, "diff", theme="ansi_dark", line_numbers=True)
-                self.ui.console.print(Panel(syntax, title="Diff"))
-                self.ui.progress.start()
-            else:
-                self.ui.info("Diff", f"No changes to {filename}")
-
-            # Write the file
-            with open(filename, "w") as f:
+            with open(os.path.join(self.workdir, filename), filename, "w") as f:
                 f.write(content)
 
     def read_file(self, filename: str):
         with self.ui.loading(f"Reading {filename}"):
-            with open(filename, "r") as f:
+            with open(os.path.join(self.workdir, filename), "r") as f:
                 return f.read()
 
     def run(self, shell: str, step_description: str):
         with self.ui.loading(step_description):
-            ret = self.devbox.run(["/bin/sh", "-c", shell])
+            ret = self.devbox.run(["/bin/sh", "-c", shell], workdir=self.workdir)
             if (len(ret.stderr) + len(ret.stdout)) > (1024 * 10):
                 return {
                     "error": f"Output too long (you get {1024 * 10} chars max)",
@@ -132,17 +114,89 @@ class Toolbox(llm.Toolbox):
             }
 
 
+def init_workdir(app_dir, workdir):
+    subprocess.run(
+        [
+            "rsync",
+            "--archive",
+            "--filter=:- .gitignore",
+            "--exclude",
+            ".git",
+            "--exclude",
+            ".claudia",
+            f"{app_dir}/.",
+            workdir,
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "init"],
+        cwd=workdir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "add", "."],
+        cwd=workdir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=workdir,
+        check=True,
+        capture_output=True,
+    )
+    return workdir
+
+
+def get_workdir_diffs(workdir):
+    try:
+        shortstat = subprocess.run(
+            ["git", "diff", "--shortstat"],
+            cwd=workdir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode != 1:
+            raise
+
+    diff = subprocess.run(
+        ["git", "diff"],
+        cwd=workdir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return {
+        "shortstat": shortstat.stdout.strip(),
+        "diff": diff.stdout.strip(),
+    }
+
+
 def run(*, model, ui):
     #
     # Init vars here
     #
-    app_dir = os.path.realpath(".")
+
+    app_dir = os.getcwd()
+
+    with ui.loading("Initializing workdir"):
+        os.makedirs(os.path.join(app_dir, ".claudia"), exist_ok=True)
+        workdir = tempfile.mkdtemp(dir=os.path.join(app_dir, ".claudia"))
+        with ui.catch():
+            init_workdir(app_dir, workdir)
+        print(workdir)
+
     conversation = model.conversation()
     devbox = DevBox(
-        volume=app_dir,
+        volume=os.path.join(app_dir, ".claudia"),
         base_image="alpine",
     )
-    toolbox = Toolbox(ui=ui, devbox=devbox)
+    toolbox = Toolbox(ui=ui, devbox=devbox, workdir=workdir)
 
     #
     # Prepare the devbox
@@ -169,14 +223,15 @@ def run(*, model, ui):
         query = ui.prompt()
         if query is None:
             break
-        response = conversation.chain(
-            query,
-            tools=[toolbox],
-            system=SYSTEM_PROMPT.format(
-                project_map=utils.get_project_map(prepend_dummy_dir=False)
-            ),
-        )
-        answer = response.text()
+        # response = conversation.chain(
+        #     query,
+        #     tools=[toolbox],
+        #     system=SYSTEM_PROMPT.format(
+        #         project_map=utils.get_project_map(prepend_dummy_dir=False)
+        #     ),
+        # )
+        # answer = response.text()
+        answer = toolbox.run(query, step_description="Running query")
 
         ui.answer(answer)
 

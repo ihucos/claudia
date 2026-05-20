@@ -47,7 +47,7 @@ class LineHandler:
             if self.current_file:
                 self.finish_current_file()
             self.current_file = fname
-            
+
             if self.progress is None:
                 self.progress = Progress(
                     TextColumn("[progress.description]{task.description}"),
@@ -56,11 +56,10 @@ class LineHandler:
                     transient=True,
                 )
                 self.progress.start()
-            
+
             total = self.get_total_lines(fname)
             self.task_id = self.progress.add_task(
-                f"[cyan]{fname}[/cyan]",
-                total=total if total > 0 else None
+                f"[cyan]{fname}[/cyan]", total=total if total > 0 else None
             )
             return
 
