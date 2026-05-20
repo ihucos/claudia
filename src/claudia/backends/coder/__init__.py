@@ -50,15 +50,15 @@ You are a senior software developer.
 """
 
 
-def escape_codeblocks(text):
+def escape_codeblocks(text: str) -> str:
     return text.replace(CODEBLOCK, ESCAPED_CODEBLOCK)
 
 
-def unescape_codeblocks(text):
+def unescape_codeblocks(text: str) -> str:
     return text.replace(ESCAPED_CODEBLOCK, CODEBLOCK)
 
 
-def trim_code_blocks_magic(fname, content):
+def trim_code_blocks_magic(fname: str, content: str) -> str:
     """Remove surrounding code block markers from content if present."""
     content = content.rstrip("\n`")
     content = content.lstrip("\n")
@@ -73,14 +73,14 @@ def trim_code_blocks_magic(fname, content):
     return content
 
 
-def remove_marker_dir(filename):
+def remove_marker_dir(filename: str) -> str:
     """Remove the DUMMY_DIR prefix from a filename."""
     if filename.startswith(MARKER_DIR):
         return filename[len(MARKER_DIR) :]
     return filename
 
 
-def get_context_files(model, task):
+def get_context_files(model, task: str) -> list:
     """Get relevant context files for a given task from the LLM."""
     prompt = PROMPT_RELEVANT_FILES.format(
         project_map=utils.get_project_map(prepend_to_files=MARKER_DIR),
@@ -94,7 +94,7 @@ def get_context_files(model, task):
     return fs_files
 
 
-def make_diff(contents: dict[str, str], dir) -> str:
+def make_diff(contents: dict[str, str], dir: str) -> str:
     diff = StringIO()
     for fname, content in contents.items():
         try:
@@ -103,18 +103,21 @@ def make_diff(contents: dict[str, str], dir) -> str:
         except FileNotFoundError:
             original_lines = []
 
+        # Fix: Keep the trailing newlines on the new content lines
+        # so they match the format returned by f.readlines()
+        new_lines = [line + "\n" for line in content.splitlines()]
+
         file_diff = difflib.unified_diff(
             original_lines,
-            content.splitlines(),
+            new_lines,
             fromfile=f"a/{fname}",
             tofile=f"b/{fname}",
         )
-        # assert 0, list(file_diff)
         diff.write("\n".join(i.strip("\n") for i in file_diff))
     return diff.getvalue()
 
 
-def apply_diff(diff, dir):
+def apply_diff(diff: str, dir: str) -> None:
     subprocess.run(
         ["patch", "-p1"],
         cwd=dir,
@@ -125,7 +128,7 @@ def apply_diff(diff, dir):
     )
 
 
-def files_to_fragments(files):
+def files_to_fragments(files: list) -> list:
     """Read files and create fragments for the LLM."""
     fragments = []
     for file in files:
@@ -139,7 +142,7 @@ def files_to_fragments(files):
     return fragments
 
 
-def implement(*, task, context_files, model, progress_cb):
+def implement(*, task: str, context_files: list, model, progress_cb) -> dict:
     response = model.prompt(
         PROMPT_IMPLEMENT.format(
             task=task,
@@ -172,14 +175,14 @@ class LineHandler:
         self.task_id = None
         self.progress_cb = progress_cb
 
-    def _get_total_lines(self, fname):
+    def _get_total_lines(self, fname: str) -> int:
         try:
             with open(fname, "r") as f:
                 return len(f.readlines())
         except FileNotFoundError:
             return 0
 
-    def handle_line(self, line):
+    def handle_line(self, line: str) -> None:
         # print(f"LineHandler: {repr(line)}")
 
         # Does the line contain a filename containing the MARKER_DIR?
@@ -192,7 +195,7 @@ class LineHandler:
             self.contents[self.current_file].append(line)
             self.progress_cb(f"Editing {self.current_file}")
 
-    def get_files(self):
+    def get_files(self) -> dict:
         stripped_contents = {}
         for fname, lines in self.contents.items():
             content = "\n".join(lines)
@@ -203,7 +206,7 @@ class LineHandler:
         return stripped_contents
 
 
-def run(model, ui):
+def run(model, ui) -> None:
     app_dir = os.getcwd()
     ui.hello()
     while True:
@@ -228,6 +231,7 @@ def run(model, ui):
         if ui.ask_diff(diff):
             with ui.catch():
                 apply_diff(diff, app_dir)
-
-        ui.answer("Done")
+            ui.answer("Applied")
+        else:
+            ui.answer("Not applied")
     ui.bye()
