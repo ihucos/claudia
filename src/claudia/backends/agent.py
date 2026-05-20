@@ -220,7 +220,6 @@ def run(*, model, ui):
         workdir = tempfile.mkdtemp(dir=os.path.join(app_dir, ".claudia"))
         with ui.catch():
             init_workdir(app_dir, workdir)
-        print(workdir)
 
     conversation = model.conversation()
     devbox = DevBox(
