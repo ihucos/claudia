@@ -268,7 +268,7 @@ def run(*, model, ui):
             with ui.catch():
                 diff = get_diff(workdir)
 
-            if ui.ask_diff(diff):
+            if diff and ui.ask_diff(diff):
                 with ui.catch():
                     apply_diff(app_dir, diff)
 
