@@ -1,10 +1,6 @@
-import difflib
 import subprocess
 import os
 import llm
-from rich.text import Text
-from rich.panel import Panel
-from rich.syntax import Syntax
 import tempfile
 
 from .. import utils
