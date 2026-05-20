@@ -258,23 +258,25 @@ def run(*, model, ui):
         query = ui.prompt()
         if query is None:
             break
-        # response = conversation.chain(
-        #     query,
-        #     tools=[toolbox],
-        #     system=SYSTEM_PROMPT.format(
-        #         project_map=utils.get_project_map(prepend_dummy_dir=False)
-        #     ),
-        # )
-        # answer = response.text()
-        answer = toolbox.run(query, step_description="Running query")
-        toolbox.write_file("test_file", "asdf\nasdf")
+        response = conversation.chain(
+            query,
+            tools=[toolbox],
+            system=SYSTEM_PROMPT.format(
+                project_map=utils.get_project_map(prepend_dummy_dir=False)
+            ),
+        )
+        answer = response.text()
+        # answer = toolbox.run(query, step_description="Running query")
+        # toolbox.write_file("test_file", "asdf\nasdf")
 
         ui.answer(answer)
-        with ui.catch():
-            diff = get_diff(workdir)
 
-        if ui.ask_diff(diff):
+        with ui.loading("Cleaning up"):
             with ui.catch():
-                apply_diff(workdir, diff)
+                diff = get_diff(workdir)
+
+            if ui.ask_diff(diff):
+                with ui.catch():
+                    apply_diff(app_dir, diff)
 
     ui.bye()
