@@ -256,9 +256,7 @@ def run(*, model, ui):
         response = conversation.chain(
             query,
             tools=[toolbox],
-            system=SYSTEM_PROMPT.format(
-                project_map=utils.get_project_map(prepend_dummy_dir=False)
-            ),
+            system=SYSTEM_PROMPT.format(project_map=utils.get_project_map()),
         )
         answer = response.text()
         # answer = toolbox.run(query, step_description="Running query")
