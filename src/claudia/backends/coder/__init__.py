@@ -56,6 +56,21 @@ def unescape_codeblocks(text):
     return text.replace(ESCAPED_CODEBLOCK, CODEBLOCK)
 
 
+def trim_code_blocks_magic(fname, content):
+    """Remove surrounding code block markers from content if present."""
+    content = content.rstrip("\n`")
+    content = content.lstrip("\n")
+
+    content_lines = content.splitlines()
+    if content_lines and content_lines[0].startswith("```"):
+        content = "\n".join(content_lines[1:])
+
+    if not content.endswith("\n"):
+        content += "\n"
+
+    return content
+
+
 def remove_marker_dir(filename):
     """Remove the DUMMY_DIR prefix from a filename."""
     if filename.startswith(MARKER_DIR):
@@ -138,6 +153,7 @@ class LineHandler:
         if match := re.search(FILE_PATH_PATTERN, line):
             fname = remove_marker_dir(match.group(1))
             self.current_file = fname
+            return
 
         if self.current_file:
             self.contents[self.current_file].append(line)
@@ -145,10 +161,10 @@ class LineHandler:
 
     def get_files(self):
         stripped_contents = {}
-        for fname, lines in self.contents:
+        for fname, lines in self.contents.items():
             content = "\n".join(lines)
-            content = utils.unescape_codeblocks(content)
-            content = utils.trim_code_blocks_magic(fname, content)
+            content = unescape_codeblocks(content)
+            content = trim_code_blocks_magic(fname, content)
             stripped_contents[fname] = content
 
         return stripped_contents

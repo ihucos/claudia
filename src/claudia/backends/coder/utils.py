@@ -22,19 +22,6 @@ def debug(text):
 
 
 
-def trim_code_blocks_magic(fname, content):
-    """Remove surrounding code block markers from content if present."""
-    content = content.rstrip("\n`")
-    content = content.lstrip("\n")
-
-    content_lines = content.splitlines()
-    if content_lines and content_lines[0].startswith("```"):
-        content = "\n".join(content_lines[1:])
-
-    if not content.endswith("\n"):
-        content += "\n"
-
-    return content
 
 
 
