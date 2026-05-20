@@ -231,7 +231,7 @@ def run(model, ui) -> None:
         if ui.ask_diff(diff):
             with ui.catch():
                 apply_diff(diff, app_dir)
-            ui.answer("Applied")
+            ui.answer("Diff applied")
         else:
-            ui.answer("Not applied")
+            ui.answer("Diff not applied")
     ui.bye()

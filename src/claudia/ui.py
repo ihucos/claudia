@@ -115,7 +115,7 @@ class UI:
         with self.console.pager(styles=True):
             self.console.print(Syntax(diff, "diff", theme="ansi_dark"))
 
-        self.answer(r"Apply Changes? \[y/n\] (n)")
+        self.answer(r"Apply diff? \[y/n\] (n)")
         inp = self.prompt()
         self.progress.start()
         return inp in ["y", "Y", "yes", "Yes"]
