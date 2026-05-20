@@ -147,38 +147,6 @@ def init_workdir(app_dir, workdir):
     return workdir
 
 
-# def get_workdir_diffs(workdir):
-#     subprocess.run(
-#         ["git", "add", "."],
-#         cwd=workdir,
-#         check=True,
-#         capture_output=True,
-#     )
-#     try:
-#         stat = subprocess.run(
-#             ["git", "diff", "--stat", "--staged"],
-#             cwd=workdir,
-#             check=True,
-#             capture_output=True,
-#             text=True,
-#         )
-#     except subprocess.CalledProcessError as exc:
-#         if exc.returncode != 1:
-#             raise
-#
-#     diff = subprocess.run(
-#         ["git", "diff", "--staged"],
-#         cwd=workdir,
-#         check=True,
-#         capture_output=True,
-#         text=True,
-#     )
-#     return {
-#         "stat": stat.stdout.strip(),
-#         "diff": diff.stdout.strip(),
-#     }
-
-
 def get_diff(workdir):
     subprocess.run(
         ["git", "add", "."],
