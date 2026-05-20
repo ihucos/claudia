@@ -226,7 +226,5 @@ def run(model, ui):
             with ui.catch():
                 apply_diff(diff, app_dir)
 
-        ui.loading("calculating...")
-        sleep(1)
         ui.answer("Done")
     ui.bye()
