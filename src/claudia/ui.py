@@ -8,7 +8,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.console import Console
 from rich.text import Text
 from rich.panel import Panel
-from rich.prompt import Confirm
 from rich.syntax import Syntax
 
 
@@ -110,15 +109,16 @@ class UI:
         return UICatch(ui=self)
 
     def ask_diff(self, diff):
-        # Show the diff in a pager, with synatax hilight
+        # Show the diff in a pager, with synatax hilighting
         # and line numbers
         self.progress.stop()
         with self.console.pager(styles=True):
             self.console.print(Syntax(diff, "diff", theme="ansi_dark"))
 
-        ask = Confirm.ask("Apply changes?", default=False)
+        self.answer("Apply Changes? \[y/n\] (n)")
+        inp = self.prompt()
         self.progress.start()
-        return ask
+        return inp in ["y", "Y", "yes", "Yes"]
 
     def answer(self, answer):
         self.progress.stop()
