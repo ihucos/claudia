@@ -7,6 +7,7 @@ from collections import defaultdict
 from io import StringIO
 import difflib
 import subprocess
+from time import sleep
 
 
 MARKER_DIR = "github_repository/"
@@ -212,15 +213,17 @@ def run(model, ui):
 
         with ui.loading("Get context files"):
             context_files = get_context_files(model, task)
-            ui.info("Context files", "\n".join(context_files))
+        with ui.loading(f"Implement with: {', '.join(context_files)}"):
+            # UI Hack: The context files are important info, let the user see it.
+            sleep(3)
 
-        with ui.loading("Implementing"):
             files: dict[str, str] = implement(
                 task=task,
                 context_files=context_files,
                 model=model,
                 progress_cb=ui.loading,
             )
+
         diff = make_diff(files, app_dir)
         if ui.ask_diff(diff):
             with ui.catch():
