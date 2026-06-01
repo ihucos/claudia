@@ -11,7 +11,7 @@ You are a coding agent.
 
 ## Notes
 - Use the tools.
-- Install any software you need to accomplish the requested task.
+- This is a temporary devbox, do whatever you need to accomplish the task.
 
 ## Application structure
 {project_map}
@@ -81,10 +81,11 @@ class DevBox:
 
 
 class Toolbox(llm.Toolbox):
-    def __init__(self, *, ui, devbox, workdir):
+    def __init__(self, *, ui, devbox, workdir, model):
         self.ui = ui
         self.devbox = devbox
         self.workdir = workdir
+        self.model = model
 
     def _check_filename(self, filename):
         if ".." in filename:
@@ -92,11 +93,11 @@ class Toolbox(llm.Toolbox):
         if filename.startswith("/"):
             raise ValueError("Filename starts with '/'")
 
-    def write_file(self, filename: str, content: str):
-        self._check_filename(filename)
-        with self.ui.loading(f"Writing {filename}"):
-            with open(os.path.join(self.workdir, filename), "w") as f:
-                f.write(content)
+    # def write_file(self, filename: str, content: str):
+    #     self._check_filename(filename)
+    #     with self.ui.loading(f"Writing {filename}"):
+    #         with open(os.path.join(self.workdir, filename), "w") as f:
+    #             f.write(content)
 
     def read_file(self, filename: str):
         self._check_filename(filename)
@@ -116,6 +117,35 @@ class Toolbox(llm.Toolbox):
                 "stderr": ret.stderr,
                 "exit_code": ret.returncode,
             }
+
+    def edit_subagent(
+        self, prompt: str, context_files: list[str], step_description: str
+    ):
+        """
+        Use a stronger model to implement the task.
+        """
+        try:
+            with self.ui.loading("coder: " + step_description):
+                from . import coder
+
+                files = coder.implement(
+                    task=prompt,
+                    context_files=context_files,
+                    model=self.model,
+                    progress_cb=self.ui.loading,
+                )
+
+                diff = coder.make_diff(files, self.workdir)
+                for file, content in files.items():
+                    with open(os.path.join(self.workdir, file), "w") as f:
+                        os.makedirs(os.path.dirname(file), exist_ok=True)
+                        f.write(content)
+                return diff
+        except Exception as e:
+            print(e)
+            import sys
+
+            sys.exit(1)
 
 
 def init_workdir(app_dir, workdir):
@@ -202,7 +232,7 @@ def run(*, model, ui):
         volume=os.path.join(app_dir, ".claudia"),
         base_image="alpine",
     )
-    toolbox = Toolbox(ui=ui, devbox=devbox, workdir=workdir)
+    toolbox = Toolbox(ui=ui, devbox=devbox, workdir=workdir, model=model)
 
     #
     # Prepare the devbox
@@ -225,6 +255,7 @@ def run(*, model, ui):
     #
     # Loop
     #
+
     while True:
         query = ui.prompt()
         if query is None:
