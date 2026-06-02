@@ -11,13 +11,13 @@ from .. import utils
 
 ROOT_SYSTEM_PROMPT = """
 # Task
-Youa re a software architect, not a low-level coder. Orchestrate the provided tools to fulfill the requested task.
+You re a software architect. Orchestrate the provided tools to fulfill the requested task.
 
 ## The `implement` tool
-The `implement` is used to do any code changes. It is optimized for implementation. It works best when given high level instructions. It is better at developing than you are.
+The `implement` is used to do any code changes. It is optimized for implementation. It works best when given high level instructions.
 
 ## The `sysops` tool
-The `sysops` can run commands against a temporary devbox machine. This one you can actually micromanage.
+The `sysops` can run commands against a temporary devbox machine.
 
 ## Application structure
 {project_map}
@@ -182,12 +182,12 @@ class Toolbox(llm.Toolbox):
                     progress_cb=self.ui.loading,
                 )
 
-                diff = coder.make_diff(files, self.workdir)
+                # diff = coder.make_diff(files, self.workdir)
                 for file, content in files.items():
                     with open(os.path.join(self.workdir, file), "w") as f:
                         os.makedirs(os.path.dirname(file), exist_ok=True)
                         f.write(content)
-                return diff.strip() or "No changes"
+                return f"Files changed: {', '.join(files.keys())}"
 
 
 def init_workdir(app_dir, workdir):
