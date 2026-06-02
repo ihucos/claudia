@@ -41,10 +41,15 @@ You are a SysOps agent.
 - The project is at {workdir}.
 - Refuse to edit files
 - When possible, execute complete shell scripts rather than commands
+- Be efficient, accomplish the task as fast as possible
 
 ## Project files
 {project_files}
 """.strip()
+
+
+class DisallowedFilenameError(Exception):
+    pass
 
 
 @contextmanager
@@ -128,9 +133,9 @@ class Toolbox(llm.Toolbox):
 
     def _check_filename(self, filename):
         if ".." in filename:
-            raise ValueError("Filename contains '..'")
+            raise DisallowedFilenameError("Filename contains '..'")
         if filename.startswith("/"):
-            raise ValueError("Filename starts with '/'")
+            raise DisallowedFilenameError("Filename starts with '/'")
 
     def _read_file(self, filename: str):
         with die():
@@ -141,32 +146,38 @@ class Toolbox(llm.Toolbox):
                     return f.read()
             except FileNotFoundError:
                 return {"error": "File not found"}
+            except DisallowedFilenameError:
+                return {"error": "Disallowed filename"}
             except OSError:
                 return {"error": f"OSError: {filename}"}
 
-    def read_files(self, filenames: list[str]) -> dict[str, str]:
+    def read_files(self, filenames: list[str], step_description) -> dict[str, str]:
         with die():
-            with self.ui.loading(f"Reading files: {', '.join(filenames)}"):
+            with self.ui.loading(step_description):
                 files = {}
                 for filename in filenames:
                     files[filename] = self._read_file(filename)
                 return files
 
-    def write_file(self, filename: str, content: str):
+    def write_file(self, filename: str, content: str, step_description: str):
         with die():
-            self._check_filename(filename)
-            with self.ui.loading(f"Write {filename}"):
-                os.makedirs(os.path.dirname(filename), exist_ok=True)
-                with open(os.path.join(self.workdir, filename), "w") as f:
+            try:
+                self._check_filename(filename)
+            except DisallowedFilenameError:
+                return {"error": "Disallowed filename"}
+            with self.ui.loading(step_description):
+                full_filename = os.path.join(self.workdir, filename)
+                os.makedirs(os.path.dirname(full_filename), exist_ok=True)
+                with open(full_filename, "w") as f:
                     f.write(content)
 
     def sysops(self, prompt: str, step_description: str):
         with die():
-            with self.ui.loading("sysops: " + step_description):
+            with self.ui.loading(step_description):
                 conversation = self.model.conversation()
 
-                def run_shell_script(script: str) -> str:
-                    with self.ui.loading("Executing: " + str(script)):
+                def run_shell_script(script: str, step_description) -> str:
+                    with self.ui.loading(step_description):
                         return self.devbox.run(
                             ["sh", "-c", script], workdir=self.workdir
                         )
@@ -184,10 +195,10 @@ class Toolbox(llm.Toolbox):
 
     def coder(self, prompt: str, context_files: list[str], step_description: str):
         with die():
-            print()
-            print(prompt)
-            print("====")
-            with self.ui.loading(f"coder: {step_description}"):
+            # print()
+            # print(prompt)
+            # print("====")
+            with self.ui.loading(step_description):
                 from . import coder
 
                 files = coder.implement(
