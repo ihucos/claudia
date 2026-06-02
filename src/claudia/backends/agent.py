@@ -23,7 +23,7 @@ The `write_file` is used to write files. Use it for smaller fixes.
 The `read_files` is used to read multiple files at once.
 
 ## The `sysops` tool
-The `sysops` subagent can run commands. It is optimized for sysops tasks, don't use it to write code.
+The `sysops` subagent can run commands. It is optimized for tasks requiring shell commands, don't use it to write code.
 
 ## Application structure
 {project_map}
