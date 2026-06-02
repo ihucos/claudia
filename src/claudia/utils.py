@@ -11,6 +11,16 @@ console = Console()
 
 
 @functools.cache
+def get_project_files(workdir):
+    return subprocess.run(
+        ["git", "ls-files", "--modified", "--cached", "--others", "--exclude-standard"],
+        text=True,
+        capture_output=True,
+        cwd=workdir,
+    )
+
+
+@functools.cache
 def get_project_map(prepend_to_files=""):
     """Generate a map of project files and their tags using ctags."""
     files = {}

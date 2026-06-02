@@ -2,20 +2,50 @@ import subprocess
 import os
 import llm
 import tempfile
+import sys
+import traceback
+from contextlib import contextmanager
 
 from .. import utils
 
-SYSTEM_PROMPT = """
+
+ROOT_SYSTEM_PROMPT = """
 # Task
-You are a coding agent.
+You are a coding agent. Orchestrate the provided tools to fulfill the requested task.
 
 ## Notes
-- Use the tools.
-- This is a temporary devbox, do whatever you need to accomplish the task.
+- The `implement` tool can only see files passed in via the `context_files` argument. 
+- Provide a precise context to the `implement` tool.
 
 ## Application structure
 {project_map}
 """.strip()
+
+# =========================
+
+SYSOPS_SYSTEM_PROMPT = """
+# Task
+You are a SysOps agent.
+
+## Notes
+- This is a temporary devbox.
+- The project is at {workdir}.
+- Don't edit files.
+- When possible, execute complete shell scripts rather than commands
+
+## Project files
+{project_files}
+""".strip()
+
+
+@contextmanager
+def die():
+    try:
+        yield
+    except Exception:
+        # Handle the exception exactly like your decorator did
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
 
 class DevBox:
@@ -93,39 +123,51 @@ class Toolbox(llm.Toolbox):
         if filename.startswith("/"):
             raise ValueError("Filename starts with '/'")
 
-    # def write_file(self, filename: str, content: str):
-    #     self._check_filename(filename)
-    #     with self.ui.loading(f"Writing {filename}"):
-    #         with open(os.path.join(self.workdir, filename), "w") as f:
-    #             f.write(content)
+    def _read_file(self, filename: str):
+        with die():
+            self._check_filename(filename)
+            # with self.ui.loading(f"Reading {filename}"):
+            try:
+                with open(os.path.join(self.workdir, filename), "r") as f:
+                    return f.read()
+            except FileNotFoundError:
+                return {"error": "File not found"}
+            except OSError:
+                return {"error": f"OSError: {filename}"}
 
-    def read_file(self, filename: str):
-        self._check_filename(filename)
-        with self.ui.loading(f"Reading {filename}"):
-            with open(os.path.join(self.workdir, filename), "r") as f:
-                return f.read()
+    def read_files(self, filenames: list[str]) -> dict[str, str]:
+        with die():
+            with self.ui.loading(f"Reading files: {', '.join(filenames)}"):
+                files = {}
+                for filename in filenames:
+                    files[filename] = self._read_file(filename)
+                return files
 
-    def run(self, shell: str, step_description: str):
-        with self.ui.loading(step_description):
-            ret = self.devbox.run(["/bin/sh", "-c", shell], workdir=self.workdir)
-            if (len(ret.stderr) + len(ret.stdout)) > (1024 * 10):
-                return {
-                    "error": f"Output too long (you get {1024 * 10} chars max)",
-                }
-            return {
-                "stdout": ret.stdout,
-                "stderr": ret.stderr,
-                "exit_code": ret.returncode,
-            }
+    def sysops(self, prompt: str, step_description: str):
+        with die():
+            with self.ui.loading("sysops: " + step_description):
+                conversation = self.model.conversation()
 
-    def edit_subagent(
-        self, prompt: str, context_files: list[str], step_description: str
-    ):
-        """
-        Use a stronger model to implement the task.
-        """
-        try:
-            with self.ui.loading("coder: " + step_description):
+                def run_shell_script(script: str) -> str:
+                    with self.ui.loading("Executing: " + str(script)):
+                        return self.devbox.run(
+                            ["sh", "-c", script], workdir=self.workdir
+                        )
+
+                response = conversation.chain(
+                    prompt,
+                    tools=[run_shell_script],
+                    system=SYSOPS_SYSTEM_PROMPT.format(
+                        workdir=self.workdir,
+                        project_files=utils.get_project_files(self.workdir),
+                    ),
+                )
+                answer = response.text()
+                return answer
+
+    def implement(self, prompt: str, context_files: list[str], step_description: str):
+        with die():
+            with self.ui.loading(f"coder: {step_description} {context_files}"):
                 from . import coder
 
                 files = coder.implement(
@@ -140,12 +182,7 @@ class Toolbox(llm.Toolbox):
                     with open(os.path.join(self.workdir, file), "w") as f:
                         os.makedirs(os.path.dirname(file), exist_ok=True)
                         f.write(content)
-                return diff
-        except Exception as e:
-            print(e)
-            import sys
-
-            sys.exit(1)
+                return diff.strip() or "No changes"
 
 
 def init_workdir(app_dir, workdir):
@@ -263,11 +300,9 @@ def run(*, model, ui):
         response = conversation.chain(
             query,
             tools=[toolbox],
-            system=SYSTEM_PROMPT.format(project_map=utils.get_project_map()),
+            system=ROOT_SYSTEM_PROMPT.format(project_map=utils.get_project_map()),
         )
         answer = response.text()
-        # answer = toolbox.run(query, step_description="Running query")
-        # toolbox.write_file("test_file", "asdf\nasdf")
 
         ui.answer(answer)
 
