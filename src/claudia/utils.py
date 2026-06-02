@@ -58,8 +58,6 @@ def get_project_map(prepend_to_files=""):
 
     for line in ctags.splitlines():
         tag, filename, *rest = line.split("\t")
-        if "/migrations/" in filename:
-            continue
         files.setdefault(filename, []).append(tag)
 
     files_map = StringIO()
