@@ -11,13 +11,19 @@ from .. import utils
 
 ROOT_SYSTEM_PROMPT = """
 # Task
-You re a software architect. Orchestrate the provided tools to fulfill the requested task.
+You re a Senior Software Architect. Orchestrate and delegate to the provided tools in order to fulfill the requested task.
 
-## The `implement` tool
-The `implement` is used to do any code changes. It is optimized for implementation. It works best when given high level instructions.
+## The `coder` tool
+The `coder` is used to do any code changes. It is optimized for implementation. It works best when given high level instructions. Use it to delegate bigger chunks of programming work. Coder cannot move, rename or delete files.
+
+## The write_file tool
+The `write_file` is used to write files. Use it only for smaller fixes.
+
+## The read_files tool
+The `read_files` is used to read multiple files at once.
 
 ## The `sysops` tool
-The `sysops` can run commands against a temporary devbox machine.
+The `sysops` subagent can run commands.
 
 ## Application structure
 {project_map}
@@ -145,6 +151,14 @@ class Toolbox(llm.Toolbox):
                     files[filename] = self._read_file(filename)
                 return files
 
+    def write_file(self, filename: str, content: str):
+        with die():
+            self._check_filename(filename)
+            with self.ui.loading(f"Write {filename}"):
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+                with open(os.path.join(self.workdir, filename), "w") as f:
+                    f.write(content)
+
     def sysops(self, prompt: str, step_description: str):
         with die():
             with self.ui.loading("sysops: " + step_description):
@@ -167,12 +181,12 @@ class Toolbox(llm.Toolbox):
                 answer = response.text()
                 return answer
 
-    def implement(self, prompt: str, context_files: list[str], step_description: str):
+    def coder(self, prompt: str, context_files: list[str], step_description: str):
         with die():
             print()
             print(prompt)
             print("====")
-            with self.ui.loading(f"coder: {step_description} {context_files}"):
+            with self.ui.loading(f"coder: {step_description}"):
                 from . import coder
 
                 files = coder.implement(
@@ -184,8 +198,8 @@ class Toolbox(llm.Toolbox):
 
                 # diff = coder.make_diff(files, self.workdir)
                 for file, content in files.items():
+                    os.makedirs(os.path.dirname(file), exist_ok=True)
                     with open(os.path.join(self.workdir, file), "w") as f:
-                        os.makedirs(os.path.dirname(file), exist_ok=True)
                         f.write(content)
                 return f"Files changed: {', '.join(files.keys())}"
 
