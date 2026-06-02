@@ -121,6 +121,7 @@ class UI:
         apply = inp in ["y", "Y", "yes", "Yes"]
         if not apply:
             self.answer("Diff not applied.")
+        return apply
 
     def diff_applied_msg(self):
         self.answer("Diff applied.")

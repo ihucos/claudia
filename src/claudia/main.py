@@ -24,8 +24,8 @@ def main():
         "backend",
         nargs="?",
         choices=["agent", "echo", "coder"],
-        default="coder",
-        help="Select the backend to run (default: coder)",
+        default="agent",
+        help="Select the backend to run (default: agent)",
     )
     args = parser.parse_args()
 
@@ -42,4 +42,3 @@ def main():
 
     with ui:
         backends[args.backend](model=model, ui=ui)
-
