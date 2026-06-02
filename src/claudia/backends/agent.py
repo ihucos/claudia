@@ -11,11 +11,13 @@ from .. import utils
 
 ROOT_SYSTEM_PROMPT = """
 # Task
-You are a coding agent. Orchestrate the provided tools to fulfill the requested task.
+Youa re a software architect, not a low-level coder. Orchestrate the provided tools to fulfill the requested task.
 
-## Notes
-- The `implement` tool can only see files passed in via the `context_files` argument. 
-- Provide a precise context to the `implement` tool.
+## The `implement` tool
+The `implement` is used to do any code changes. It is optimized for implementation. It works best when given high level instructions. It is better at developing than you are.
+
+## The `sysops` tool
+The `sysops` can run commands against a temporary devbox machine. This one you can actually micromanage.
 
 ## Application structure
 {project_map}
@@ -30,7 +32,7 @@ You are a SysOps agent.
 ## Notes
 - This is a temporary devbox.
 - The project is at {workdir}.
-- Don't edit files.
+- Refuse to edit files
 - When possible, execute complete shell scripts rather than commands
 
 ## Project files
@@ -167,6 +169,9 @@ class Toolbox(llm.Toolbox):
 
     def implement(self, prompt: str, context_files: list[str], step_description: str):
         with die():
+            print()
+            print(prompt)
+            print("====")
             with self.ui.loading(f"coder: {step_description} {context_files}"):
                 from . import coder
 
