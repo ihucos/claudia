@@ -278,5 +278,6 @@ def run(*, model, ui):
             if diff and ui.ask_diff(diff):
                 with ui.catch():
                     apply_diff(app_dir, diff)
+                ui.diff_applied_msg()
 
     ui.bye()

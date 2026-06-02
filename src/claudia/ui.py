@@ -115,10 +115,15 @@ class UI:
         with self.console.pager(styles=True):
             self.console.print(Syntax(diff, "diff", theme="ansi_dark"))
 
-        self.answer(r"Apply diff? \[y/n\] (n)")
+        self.answer(r"Apply diff? \[y/n] (n)")
         inp = self.prompt()
         self.progress.start()
-        return inp in ["y", "Y", "yes", "Yes"]
+        apply = inp in ["y", "Y", "yes", "Yes"]
+        if not apply:
+            self.answer("Diff not applied.")
+
+    def diff_applied_msg(self):
+        self.answer("Diff applied.")
 
     def answer(self, answer):
         self.progress.stop()
