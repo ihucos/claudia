@@ -10,7 +10,7 @@ from pathlib import Path
 from .. import utils
 
 
-ROOT_SYSTEM_PROMPT = """
+CODER_SYTEM_PROMPT = """
 # Task
 You re a Senior Software Architect. Orchestrate and delegate to the provided tools in order to fulfill the requested task.
 
@@ -27,9 +27,6 @@ The `write_file` is used to write files. Use it for smaller fixes.
 
 ### The read_files tool
 The `read_files` is used to read multiple files at once.
-
-### The `sysops` tool
-The `sysops` subagent can run commands. It is optimized for tasks requiring shell commands, don't use it to write code. Use natural langauge and high level concepts (don't micromanage) to describe what it should do. The sysops tool does not have conversation history.
 
 ## Application structure
 {project_map}
@@ -48,7 +45,6 @@ You are a SysOps agent.
 - The project is at {workdir}.
 - Refuse to edit files
 - When possible, execute complete shell scripts rather than commands
-- Be efficient, accomplish the task as fast as possible
 - Read and maintain information usefull for future invocations at /sysops_breadcrumbs.txt to make future invocations of sysops more efficient.
 
 ## Project files
@@ -132,12 +128,24 @@ class DevBox:
         )
 
 
-class Toolbox(llm.Toolbox):
-    def __init__(self, *, ui, devbox, workdir, model):
+class RunnerToolbox(llm.Toolbox):
+    def __init__(self, *, ui, workdir, devbox):
         self.ui = ui
-        self.devbox = devbox
         self.workdir = workdir
-        self.model = model
+        self.devbox = devbox
+
+    def cmd(self, shell_cmd, step_description):
+        with die():
+            with self.ui.loading(step_description):
+                return self.devbox.run(
+                    ["/bin/sh", "-c", shell_cmd], workdir=self.workdir
+                )
+
+
+class CoderToolbox(llm.Toolbox):
+    def __init__(self, *, ui, workdir):
+        self.ui = ui
+        self.workdir = workdir
 
     def _check_filename(self, filename):
         filename = (Path(self.workdir) / Path(self.workdir)).resolve()
@@ -178,34 +186,34 @@ class Toolbox(llm.Toolbox):
                 with open(full_filename, "w") as f:
                     f.write(content)
 
-    def sysops(self, prompt: str, step_description: str):
-        with die():
-            print()
-            print(prompt)
-            print()
-            with self.ui.loading(step_description):
-                # conversation = self.model.conversation()
-                conversation = llm.get_model("ibm/granite4.1:3b").conversation()
-
-                def run_shell_script(script: str, step_description) -> str:
-                    with self.ui.loading(script):
-                        return self.devbox.run(
-                            ["sh", "-c", script], workdir=self.workdir
-                        )
-
-                response = conversation.chain(
-                    prompt,
-                    tools=[run_shell_script],
-                    system=SYSOPS_SYSTEM_PROMPT.format(
-                        workdir=self.workdir,
-                        project_files=utils.get_project_files(self.workdir),
-                    ),
-                )
-                answer = response.text()
-                print()
-                print(answer)
-                print()
-                return answer
+    # def sysops(self, prompt: str, step_description: str):
+    #     with die():
+    #         print()
+    #         print(prompt)
+    #         print()
+    #         with self.ui.loading(step_description):
+    #             # conversation = self.model.conversation()
+    #             conversation = llm.get_model("ibm/granite4.1:3b").conversation()
+    #
+    #             def run_shell_script(script: str, step_description) -> str:
+    #                 with self.ui.loading(script):
+    #                     return self.devbox.run(
+    #                         ["sh", "-c", script], workdir=self.workdir
+    #                     )
+    #
+    #             response = conversation.chain(
+    #                 prompt,
+    #                 tools=[run_shell_script],
+    #                 system=SYSOPS_SYSTEM_PROMPT.format(
+    #                     workdir=self.workdir,
+    #                     project_files=utils.get_project_files(self.workdir),
+    #                 ),
+    #             )
+    #             answer = response.text()
+    #             print()
+    #             print(answer)
+    #             print()
+    #             return answer
 
     def coder(self, prompt: str, step_description: str):
         with die():
@@ -314,7 +322,7 @@ def run(*, model, ui):
         volume=os.path.join(app_dir, ".claudia"),
         base_image="alpine",
     )
-    toolbox = Toolbox(ui=ui, devbox=devbox, workdir=workdir, model=model)
+    code_writer = CoderToolbox(ui=ui, workdir=workdir)
 
     #
     # Prepare the devbox
@@ -342,11 +350,18 @@ def run(*, model, ui):
         query = ui.prompt()
         if query is None:
             break
-        response = conversation.chain(
-            query,
-            tools=[toolbox],
-            system=ROOT_SYSTEM_PROMPT.format(project_map=utils.get_project_map()),
-        )
+        if query.startswith("runner: "):
+            query = query[len("runner: ") :]
+            response = conversation.chain(
+                query,
+                tools=[RunnerToolbox(ui=ui, workdir=workdir, devbox=devbox)],
+            )
+        else:
+            response = conversation.chain(
+                query,
+                tools=[code_writer],
+                system=CODER_SYTEM_PROMPT.format(project_map=utils.get_project_map()),
+            )
         answer = response.text()
 
         ui.answer(answer)
