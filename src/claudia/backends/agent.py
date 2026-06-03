@@ -6,6 +6,7 @@ import sys
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
+import shutil
 
 from .. import utils
 
@@ -168,15 +169,14 @@ class CoderToolbox(llm.Toolbox):
                 return {"error": f"OSError: {filename}"}
 
     def read_files(self, filenames: list[str], step_description) -> dict[str, str]:
-        with die():
-            with self.ui.loading(step_description):
-                files = {}
-                for filename in filenames:
-                    files[filename] = self._read_file(filename)
-                return files
+        with die(), self.ui.loading(step_description):
+            files = {}
+            for filename in filenames:
+                files[filename] = self._read_file(filename)
+            return files
 
     def write_file(self, filename: str, content: str, step_description: str):
-        with die():
+        with die(), self.ui.loading(step_description):
             try:
                 self._check_filename(filename)
             except DisallowedFilenameError:
@@ -186,6 +186,33 @@ class CoderToolbox(llm.Toolbox):
                 os.makedirs(os.path.dirname(full_filename), exist_ok=True)
                 with open(full_filename, "w") as f:
                     f.write(content)
+
+    def copy(self, path: str, dest: str, step_description: str):
+        with die(), self.ui.loading(step_description):
+            try:
+                self._check_filename(path)
+            except DisallowedFilenameError:
+                return {"error": "Disallowed filename"}
+            shutil.copy(path, dest)
+
+    def move(self, path: str, dest: str, step_description: str):
+        with die(), self.ui.loading(step_description):
+            try:
+                self._check_filename(path)
+            except DisallowedFilenameError:
+                return {"error": "Disallowed filename"}
+            shutil.move(path, dest)
+
+    def delete(self, path: str, step_description: str):
+        with die(), self.ui.loading(step_description):
+            try:
+                self._check_filename(path)
+            except DisallowedFilenameError:
+                return {"error": "Disallowed filename"}
+            try:
+                shutil.rmtree(path)
+            except OSError as exc:
+                return {"error": str(exc)}
 
     # def search_string()
 
@@ -236,11 +263,20 @@ class CoderToolbox(llm.Toolbox):
                 )
 
                 # diff = coder.make_diff(files, self.workdir)
+                errors = {}
                 for file, content in files.items():
-                    os.makedirs(os.path.dirname(file), exist_ok=True)
-                    with open(os.path.join(self.workdir, file), "w") as f:
-                        f.write(content)
-                return f"Files changed: {', '.join(files.keys())}"
+                    os.makedirs(
+                        os.path.dirname(os.path.join(self.workdir, file)), exist_ok=True
+                    )
+                    try:
+                        with open(os.path.join(self.workdir, file), "w") as f:
+                            f.write(content)
+                    except OSError as exc:
+                        errors[file] = str(exc)
+                ret = f"Files changed: {', '.join(files.keys())}."
+                if errors:
+                    ret += f" Errors: {', '.join(errors.keys())}"
+                return ret
 
 
 def init_workdir(app_dir, workdir):
