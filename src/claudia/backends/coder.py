@@ -162,7 +162,13 @@ def implement(*, task: str, context_files: list, model, progress_cb) -> dict:
     if changes:
         line_handler.handle_line(changes)
 
-    return line_handler.get_files()
+    files = line_handler.get_files()
+
+    # Hack
+    if list(files.keys()) == [""] and len(context_files) == 1:
+        files = {context_files[0]: files[""]}
+
+    return files
 
 
 class LineHandler:

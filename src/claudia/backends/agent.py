@@ -14,17 +14,22 @@ ROOT_SYSTEM_PROMPT = """
 # Task
 You re a Senior Software Architect. Orchestrate and delegate to the provided tools in order to fulfill the requested task.
 
-## The `coder` tool
+## Tip
+ When requested to implement features, use `coder` for most of the work first, then polish and verify with the other tools.
+
+## Tools
+
+### The `coder` tool
 The `coder` is used to do any code changes. It is optimized for implementation. It works best when given high level instructions. Use it to delegate bigger chunks of programming work. Coder cannot move, rename or delete files.
 
-## The write_file tool
+### The write_file tool
 The `write_file` is used to write files. Use it for smaller fixes.
 
-## The read_files tool
+### The read_files tool
 The `read_files` is used to read multiple files at once.
 
-## The `sysops` tool
-The `sysops` subagent can run commands. It is optimized for tasks requiring shell commands, don't use it to write code. Use natural langauge to describe what it should do.
+### The `sysops` tool
+The `sysops` subagent can run commands. It is optimized for tasks requiring shell commands, don't use it to write code. Use natural langauge and high level concepts (don't micromanage) to describe what it should do. The sysops tool does not have conversation history.
 
 ## Application structure
 {project_map}
@@ -202,7 +207,7 @@ class Toolbox(llm.Toolbox):
                 print()
                 return answer
 
-    def coder(self, prompt: str, context_files: list[str], step_description: str):
+    def coder(self, prompt: str, step_description: str):
         with die():
             # print()
             # print(prompt)
@@ -212,7 +217,7 @@ class Toolbox(llm.Toolbox):
 
                 files = coder.implement(
                     task=prompt,
-                    context_files=context_files,
+                    context_files=coder.get_context_files(self.model, prompt),
                     model=self.model,
                     progress_cb=self.ui.loading,
                 )
