@@ -17,7 +17,7 @@ def get_project_files(workdir):
         text=True,
         capture_output=True,
         cwd=workdir,
-    )
+    ).stdout
 
 
 @functools.cache

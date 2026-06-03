@@ -5,6 +5,7 @@ import tempfile
 import sys
 import traceback
 from contextlib import contextmanager
+from pathlib import Path
 
 from .. import utils
 
@@ -23,7 +24,7 @@ The `write_file` is used to write files. Use it for smaller fixes.
 The `read_files` is used to read multiple files at once.
 
 ## The `sysops` tool
-The `sysops` subagent can run commands. It is optimized for tasks requiring shell commands, don't use it to write code.
+The `sysops` subagent can run commands. It is optimized for tasks requiring shell commands, don't use it to write code. Use natural langauge to describe what it should do.
 
 ## Application structure
 {project_map}
@@ -36,13 +37,14 @@ SYSOPS_SYSTEM_PROMPT = """
 You are a SysOps agent.
 
 ## Notes
+- You can delete any data you want as you are sandboxed.
 - This is a temporary devbox.
 - Install any tools you need.
 - The project is at {workdir}.
 - Refuse to edit files
 - When possible, execute complete shell scripts rather than commands
 - Be efficient, accomplish the task as fast as possible
-- Read and maintain information usefull for future invocations at /sysops_breadcrumbs.txt
+- Read and maintain information usefull for future invocations at /sysops_breadcrumbs.txt to make future invocations of sysops more efficient.
 
 ## Project files
 {project_files}
@@ -133,9 +135,7 @@ class Toolbox(llm.Toolbox):
         self.model = model
 
     def _check_filename(self, filename):
-        if ".." in filename:
-            raise DisallowedFilenameError("Filename contains '..'")
-        if filename.startswith("/"):
+        if not Path(filename).resolve().is_relative_to(Path(self.workdir).resolve()):
             raise DisallowedFilenameError("Filename starts with '/'")
 
     def _read_file(self, filename: str):
@@ -174,11 +174,15 @@ class Toolbox(llm.Toolbox):
 
     def sysops(self, prompt: str, step_description: str):
         with die():
+            print()
+            print(prompt)
+            print()
             with self.ui.loading(step_description):
-                conversation = self.model.conversation()
+                # conversation = self.model.conversation()
+                conversation = llm.get_model("ibm/granite4.1:3b").conversation()
 
                 def run_shell_script(script: str, step_description) -> str:
-                    with self.ui.loading(step_description):
+                    with self.ui.loading(script):
                         return self.devbox.run(
                             ["sh", "-c", script], workdir=self.workdir
                         )
@@ -192,6 +196,9 @@ class Toolbox(llm.Toolbox):
                     ),
                 )
                 answer = response.text()
+                print()
+                print(answer)
+                print()
                 return answer
 
     def coder(self, prompt: str, context_files: list[str], step_description: str):
