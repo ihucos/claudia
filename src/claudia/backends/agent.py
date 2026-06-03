@@ -143,9 +143,10 @@ class RunnerToolbox(llm.Toolbox):
 
 
 class CoderToolbox(llm.Toolbox):
-    def __init__(self, *, ui, workdir):
+    def __init__(self, *, ui, workdir, model):
         self.ui = ui
         self.workdir = workdir
+        self.model = model
 
     def _check_filename(self, filename):
         filename = (Path(self.workdir) / Path(self.workdir)).resolve()
@@ -322,7 +323,7 @@ def run(*, model, ui):
         volume=os.path.join(app_dir, ".claudia"),
         base_image="alpine",
     )
-    code_writer = CoderToolbox(ui=ui, workdir=workdir)
+    code_writer = CoderToolbox(ui=ui, workdir=workdir, model=model)
 
     #
     # Prepare the devbox
