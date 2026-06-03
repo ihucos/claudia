@@ -135,8 +135,9 @@ class Toolbox(llm.Toolbox):
         self.model = model
 
     def _check_filename(self, filename):
-        if not Path(filename).resolve().is_relative_to(Path(self.workdir).resolve()):
-            raise DisallowedFilenameError("Filename starts with '/'")
+        filename = (Path(self.workdir) / Path(self.workdir)).resolve()
+        if not filename.is_relative_to(self.workdir):
+            raise DisallowedFilenameError(f"Bad filename: {filename}")
 
     def _read_file(self, filename: str):
         with die():
