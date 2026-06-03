@@ -187,6 +187,10 @@ class CoderToolbox(llm.Toolbox):
                 with open(full_filename, "w") as f:
                     f.write(content)
 
+    # def search_string()
+
+    # def search_and_repalce_string()
+
     # def sysops(self, prompt: str, step_description: str):
     #     with die():
     #         print()
@@ -351,8 +355,8 @@ def run(*, model, ui):
         query = ui.prompt()
         if query is None:
             break
-        if query.startswith("runner: "):
-            query = query[len("runner: ") :]
+        if query.startswith("$ "):
+            query = query[len("$ ") :]
             response = conversation.chain(
                 query,
                 tools=[RunnerToolbox(ui=ui, workdir=workdir, devbox=devbox)],
