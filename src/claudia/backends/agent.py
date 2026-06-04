@@ -68,9 +68,10 @@ def die():
 
 
 class DevBox:
-    def __init__(self, *, volume, base_image):
+    def __init__(self, *, volume, base_image, workdir):
         self.volume = volume
         self.base_image = base_image
+        self.workdir = workdir
 
     @property
     def name(self):
@@ -114,13 +115,13 @@ class DevBox:
             capture_output=True,
         )
 
-    def run(self, cmd, *, workdir="/"):
+    def run(self, cmd):
         return subprocess.run(
             [
                 "docker",
                 "exec",
                 "--workdir",
-                workdir,
+                self.workdir,
                 self.name,
             ]
             + cmd,
@@ -345,7 +346,11 @@ def apply_diff(dir, diff):
     )
 
 
-def run(*, model, ui):
+def get_tools(*, workdir, devbox, ui, model):
+    return [CoderToolbox(ui=ui, workdir=workdir, model=model)]
+
+
+def run(*, model, ui, get_tools=get_tools):
     #
     # Init vars here
     #
@@ -358,12 +363,15 @@ def run(*, model, ui):
         with ui.catch():
             init_workdir(app_dir, workdir)
 
-    conversation = model.conversation()
     devbox = DevBox(
         volume=os.path.join(app_dir, ".claudia"),
         base_image="alpine",
+        workdir=workdir,
     )
-    code_writer = CoderToolbox(ui=ui, workdir=workdir, model=model)
+
+    tools = get_tools(workdir=workdir, devbox=devbox, ui=ui, model=model)
+
+    conversation = model.conversation()
 
     #
     # Prepare the devbox
@@ -400,7 +408,7 @@ def run(*, model, ui):
         else:
             response = conversation.chain(
                 query,
-                tools=[code_writer],
+                tools=tools,
                 system=CODER_SYTEM_PROMPT.format(project_map=utils.get_project_map()),
             )
         answer = response.text()
