@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from pathlib import Path
 import shutil
 
+from ..ui import UI
+from ..models import DeepSeekChat
 from .. import utils
 
 
@@ -350,10 +352,16 @@ def get_tools(*, workdir, devbox, ui, model):
     return [CoderToolbox(ui=ui, workdir=workdir, model=model)]
 
 
-def run(*, model, ui, get_tools=get_tools):
+def run(*, model=None, ui=None, get_tools=get_tools):
     #
     # Init vars here
     #
+
+    if ui is None:
+        ui = UI.from_env()
+
+    if model is None:
+        model = DeepSeekChat("deepseek-v4-flash")
 
     app_dir = os.getcwd()
 
