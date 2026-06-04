@@ -336,7 +336,7 @@ def get_diff(workdir):
 
 def apply_diff(dir, diff):
     subprocess.run(
-        ["git", "apply", "-"],
+        ["git", "apply", "--reject", "-"],
         cwd=dir,
         check=True,
         capture_output=True,
