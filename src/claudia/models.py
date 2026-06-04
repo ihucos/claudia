@@ -18,3 +18,4 @@ class DeepSeekChat(Chat):
             model_id=model_name,
             api_base="https://api.deepseek.com",
         )
+        self.supports_tools = True
