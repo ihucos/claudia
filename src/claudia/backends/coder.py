@@ -137,6 +137,8 @@ def files_to_fragments(files: list) -> list:
                 content = f.read()
         except FileNotFoundError:
             fragments.append(f"# File not found: {file}")
+        except IsADirectoryError:
+            continue
         else:
             fragments.append(f"# {file}\n\n{escape_codeblocks(content)}")
     return fragments
