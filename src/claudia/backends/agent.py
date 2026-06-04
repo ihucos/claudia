@@ -13,7 +13,7 @@ from ..models import DeepSeekChat
 from .. import utils
 
 
-CODER_SYTEM_PROMPT = """
+CODER_SYSTEM_PROMPT = """
 # Task
 You re a Senior Software Architect. Orchestrate and delegate to the provided tools in order to fulfill the requested task.
 
@@ -352,7 +352,7 @@ def get_tools(*, workdir, devbox, ui, model):
     return [CoderToolbox(ui=ui, workdir=workdir, model=model)]
 
 
-def run(*, model=None, ui=None, get_tools=get_tools):
+def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_PROMPT):
     #
     # Init vars here
     #
