@@ -417,7 +417,7 @@ def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_
             response = conversation.chain(
                 query,
                 tools=tools,
-                system=CODER_SYTEM_PROMPT.format(project_map=utils.get_project_map()),
+                system=system_prompt.format(project_map=utils.get_project_map()),
             )
         answer = response.text()
 
