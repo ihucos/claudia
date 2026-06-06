@@ -4,6 +4,8 @@ import subprocess
 
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.keys import Keys
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.console import Console
 from rich.text import Text
@@ -108,23 +110,43 @@ class UI:
     def catch(self):
         return UICatch(ui=self)
 
-    def ask_diff(self, diff):
-        # Show the diff in a pager, with synatax hilighting
-        # and line numbers
+    def ask_diff(self, diff, stat=None):
         self.progress.stop()
-        with self.console.pager(styles=True):
-            self.console.print(Syntax(diff, "diff", theme="ansi_dark"))
+        # print in magenta
+        self.console.print(
+            f"{stat}.\nApply? [y/n/o]", markup=False, style="magenta", end=""
+        )
 
-        self.answer(r"Apply diff? \[y/n] (n)")
-        inp = self.prompt()
+        # Use prompt with key bindings to detect Ctrl+Y
+        bindings = KeyBindings()
+
+        result = {"apply": False}
+
+        @bindings.add("y")
+        def _(event):
+            result["apply"] = True
+            event.app.exit()
+
+        @bindings.add("n")
+        def _(event):
+            result["apply"] = False
+            event.app.exit()
+
+        @bindings.add("o")
+        def _(event):
+            with self.console.pager(styles=True):
+                self.console.print(Syntax(diff, "diff", theme="ansi_dark"))
+
+        try:
+            prompt("", key_bindings=bindings)
+        except (EOFError, KeyboardInterrupt):
+            pass
+
         self.progress.start()
-        apply = inp in ["y", "Y", "yes", "Yes"]
-        if not apply:
-            self.answer("Diff not applied.")
-        return apply
+        return result["apply"]
 
-    def diff_applied_msg(self):
-        self.answer("Diff applied.")
+    def diff_applied_msg(self, cmd, dir):
+        self.answer(f"{dir}$ {cmd}")
 
     def answer(self, answer):
         self.progress.stop()

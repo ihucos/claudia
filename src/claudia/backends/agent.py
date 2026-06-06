@@ -217,44 +217,8 @@ class CoderToolbox(llm.Toolbox):
             except OSError as exc:
                 return {"error": str(exc)}
 
-    # def search_string()
-
-    # def search_and_repalce_string()
-
-    # def sysops(self, prompt: str, step_description: str):
-    #     with die():
-    #         print()
-    #         print(prompt)
-    #         print()
-    #         with self.ui.loading(step_description):
-    #             # conversation = self.model.conversation()
-    #             conversation = llm.get_model("ibm/granite4.1:3b").conversation()
-    #
-    #             def run_shell_script(script: str, step_description) -> str:
-    #                 with self.ui.loading(script):
-    #                     return self.devbox.run(
-    #                         ["sh", "-c", script], workdir=self.workdir
-    #                     )
-    #
-    #             response = conversation.chain(
-    #                 prompt,
-    #                 tools=[run_shell_script],
-    #                 system=SYSOPS_SYSTEM_PROMPT.format(
-    #                     workdir=self.workdir,
-    #                     project_files=utils.get_project_files(self.workdir),
-    #                 ),
-    #             )
-    #             answer = response.text()
-    #             print()
-    #             print(answer)
-    #             print()
-    #             return answer
-
     def coder(self, prompt: str, step_description: str):
         with die():
-            # print()
-            # print(prompt)
-            # print("====")
             with self.ui.loading(step_description):
                 from . import coder
 
@@ -265,7 +229,6 @@ class CoderToolbox(llm.Toolbox):
                     progress_cb=self.ui.loading,
                 )
 
-                # diff = coder.make_diff(files, self.workdir)
                 errors = {}
                 for file, content in files.items():
                     os.makedirs(
@@ -337,6 +300,21 @@ def get_diff(workdir):
     return diff.stdout
 
 
+def get_diff_shortstat(workdir):
+    """Get a git-style shortstat summary from the staged diff."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--staged", "--shortstat"],
+            cwd=workdir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+
+
 def apply_diff(dir, diff):
     subprocess.run(
         ["git", "apply", "--reject", "-"],
@@ -353,10 +331,6 @@ def get_tools(*, workdir, devbox, ui, model):
 
 
 def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_PROMPT):
-    #
-    # Init vars here
-    #
-
     if ui is None:
         ui = UI.from_env()
 
@@ -381,9 +355,6 @@ def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_
 
     conversation = model.conversation()
 
-    #
-    # Prepare the devbox
-    #
     with ui.catch():
         with ui.loading("Checking if devbox exists"):
             devbox_exists = devbox.exists()
@@ -394,14 +365,7 @@ def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_
             with ui.loading("Starting devbox"):
                 devbox.start()
 
-    #
-    # Say hello
-    #
     ui.hello()
-
-    #
-    # Loop
-    #
 
     while True:
         query = ui.prompt()
@@ -426,10 +390,13 @@ def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_
         with ui.loading("Cleaning up"):
             with ui.catch():
                 diff = get_diff(workdir)
+                stat = get_diff_shortstat(workdir)
 
-            if diff and ui.ask_diff(diff):
+            if diff and ui.ask_diff(diff, stat=stat):
                 with ui.catch():
                     apply_diff(app_dir, diff)
-                ui.diff_applied_msg()
+                # ui.diff_applied_msg(cmd="blah", dir=app_dir)
+                ui.info("app_dir", app_dir)
+                ui.info("workdir", workdir)
 
     ui.bye()

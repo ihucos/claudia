@@ -128,6 +128,35 @@ def apply_diff(diff: str, dir: str) -> None:
     )
 
 
+def get_diff_shortstat(diff: str) -> str:
+    """Get a git-style shortstat summary for the given diff."""
+    try:
+        result = subprocess.run(
+            ["git", "apply", "--stat", "--summary", "/dev/stdin"],
+            check=True,
+            capture_output=True,
+            text=True,
+            input=diff,
+        )
+        # The last line of git apply --stat output is the shortstat
+        lines = result.stdout.strip().splitlines()
+        if lines:
+            return lines[-1]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    # Fallback: manual computation
+    added = 0
+    removed = 0
+    for line in diff.splitlines():
+        if line.startswith("+") and not line.startswith("+++"):
+            added += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            removed += 1
+
+    fcount = len({l.split()[-1] for l in diff.splitlines() if l.startswith("diff --git ")})
+    return f"{fcount} file(s) changed, {added} insertions(+), {removed} deletions(-)"
+
+
 def files_to_fragments(files: list) -> list:
     """Read files and create fragments for the LLM."""
     fragments = []
@@ -236,8 +265,9 @@ def run(model, ui) -> None:
             )
 
         diff = make_diff(files, app_dir)
-        if ui.ask_diff(diff):
+        stat = get_diff_shortstat(diff)
+        if ui.ask_diff(diff, stat=stat):
             with ui.catch():
                 apply_diff(diff, app_dir)
-            ui.diff_applied_msg()
+            ui.diff_applied_msg(cmd="patch -p1")
     ui.bye()
