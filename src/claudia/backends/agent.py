@@ -141,9 +141,7 @@ class RunnerToolbox(llm.Toolbox):
     def cmd(self, shell_cmd, step_description):
         with die():
             with self.ui.loading(step_description):
-                proc = self.devbox.run(
-                    ["/bin/sh", "-c", shell_cmd], workdir=self.workdir
-                )
+                proc = self.devbox.run(["/bin/sh", "-c", shell_cmd])
                 return {
                     "stdout": proc.stdout,
                     "stderr": proc.stderr,
@@ -322,7 +320,7 @@ def get_diff_shortstat(workdir):
 
 def apply_diff(dir, diff):
     subprocess.run(
-        ["git", "apply", "--reject", "-"],
+        ["patch", "-p1"],
         cwd=dir,
         check=True,
         capture_output=True,

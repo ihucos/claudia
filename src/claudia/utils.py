@@ -57,6 +57,8 @@ def get_project_map(prepend_to_files=""):
         sys.exit(1)
 
     for line in ctags.splitlines():
+        if not line:
+            continue
         tag, filename, *rest = line.split("\t")
         files.setdefault(filename, []).append(tag)
 
