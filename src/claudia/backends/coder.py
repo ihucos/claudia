@@ -11,7 +11,7 @@ from time import sleep
 
 
 MARKER_DIR = "github_repository/"
-FILE_PATH_PATTERN = re.compile(rf"({MARKER_DIR}[\w/.-]+)")
+FILE_PATH_PATTERN = re.compile(rf"({MARKER_DIR}[\w/.+-_]+)")
 CODEBLOCK = "\n```"
 ESCAPED_CODEBLOCK = "\n ```"
 
@@ -28,7 +28,7 @@ List files thath are relevant to the task.
 ```
 
 ## Notes
-- Emit the full file path including the '{marker_dir}' prefix.
+- All files you specify must start with the '{marker_dir}' prefix.
 """
 
 PROMPT_IMPLEMENT = """
@@ -87,7 +87,6 @@ def get_context_files(model, task: str) -> list:
         task=task,
         marker_dir=MARKER_DIR,
     )
-
     response = model.prompt(prompt)
     files = FILE_PATH_PATTERN.findall(response.text())
     fs_files = [remove_marker_dir(f) for f in files]
@@ -153,7 +152,9 @@ def get_diff_shortstat(diff: str) -> str:
         elif line.startswith("-") and not line.startswith("---"):
             removed += 1
 
-    fcount = len({l.split()[-1] for l in diff.splitlines() if l.startswith("diff --git ")})
+    fcount = len(
+        {l.split()[-1] for l in diff.splitlines() if l.startswith("diff --git ")}
+    )
     return f"{fcount} file(s) changed, {added} insertions(+), {removed} deletions(-)"
 
 
@@ -220,7 +221,7 @@ class LineHandler:
             return 0
 
     def handle_line(self, line: str) -> None:
-        # print(f"LineHandler: {repr(line)}")
+        print(f"LineHandler: {repr(line)}")
 
         # Does the line contain a filename containing the MARKER_DIR?
         if match := re.search(FILE_PATH_PATTERN, line):
@@ -230,7 +231,7 @@ class LineHandler:
 
         if self.current_file:
             self.contents[self.current_file].append(line)
-            self.progress_cb(f"Editing {self.current_file}")
+            self.progress_cb(f"Writing {self.current_file}")
 
     def get_files(self) -> dict:
         stripped_contents = {}

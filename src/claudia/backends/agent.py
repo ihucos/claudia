@@ -274,7 +274,7 @@ def init_workdir(app_dir, workdir):
         capture_output=True,
     )
     subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
+        ["git", "commit", "-m", "Initial commit", "--allow-empty"],
         cwd=workdir,
         check=True,
         capture_output=True,
