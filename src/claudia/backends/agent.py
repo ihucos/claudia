@@ -141,9 +141,14 @@ class RunnerToolbox(llm.Toolbox):
     def cmd(self, shell_cmd, step_description):
         with die():
             with self.ui.loading(step_description):
-                return self.devbox.run(
+                proc = self.devbox.run(
                     ["/bin/sh", "-c", shell_cmd], workdir=self.workdir
                 )
+                return {
+                    "stdout": proc.stdout,
+                    "stderr": proc.stderr,
+                    "exit_status": proc.returncode,
+                }
 
 
 class CoderToolbox(llm.Toolbox):
@@ -378,10 +383,19 @@ def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_
                 tools=[RunnerToolbox(ui=ui, workdir=workdir, devbox=devbox)],
             )
         else:
+
+            def before_call(tool, tool_call):
+                ui.debug(f"{tool.name}({tool_call.arguments})")
+
+            def after_call(tool, tool_call, tool_result):
+                ui.debug(f"-> {tool_result.output}")
+
             response = conversation.chain(
                 query,
                 tools=tools,
                 system=system_prompt.format(project_map=utils.get_project_map()),
+                before_call=before_call,
+                after_call=after_call,
             )
         answer = response.text()
 
