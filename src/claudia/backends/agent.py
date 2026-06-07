@@ -402,8 +402,6 @@ def run(
 
         ui.answer(answer)
 
-        ui.info("app_dir", app_dir)
-        ui.info("workdir", workdir)
         with ui.loading("Cleaning up"):
             with ui.catch():
                 diff = get_diff(workdir)
@@ -412,6 +410,14 @@ def run(
             if diff and (prompt is not None or ui.ask_diff(diff, stat=stat)):
                 with ui.catch():
                     apply_diff(app_dir, diff)
+
+                    ui.info("app_dir", app_dir)
+                    ui.info("workdir", workdir)
+                    subprocess.run(
+                        ["git", "commit", "-m", "Update"],
+                        cwd=workdir,
+                        check=True,
+                    )
 
                 # ui.progress.stop()
                 # ui.diff_applied_msg(cmd="blah", dir=app_dir)
