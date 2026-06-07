@@ -333,7 +333,14 @@ def get_tools(*, workdir, devbox, ui, model):
     return [CoderToolbox(ui=ui, workdir=workdir, model=model)]
 
 
-def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_PROMPT):
+def run(
+    *,
+    model=None,
+    ui=None,
+    get_tools=get_tools,
+    system_prompt=CODER_SYSTEM_PROMPT,
+    prompt=None,
+):
     if ui is None:
         ui = UI.from_env()
 
@@ -371,9 +378,13 @@ def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_
     ui.hello()
 
     while True:
-        query = ui.prompt()
-        if query is None:
-            break
+        if prompt is None:
+            query = ui.prompt()
+            if query is None:
+                break
+        else:
+            query = prompt
+
         if query.startswith("$ "):
             query = query[len("$ ") :]
             response = conversation.chain(
@@ -410,5 +421,8 @@ def run(*, model=None, ui=None, get_tools=get_tools, system_prompt=CODER_SYSTEM_
                 # ui.diff_applied_msg(cmd="blah", dir=app_dir)
                 ui.info("app_dir", app_dir)
                 ui.info("workdir", workdir)
+
+        if prompt is not None:
+            break
 
     ui.bye()
