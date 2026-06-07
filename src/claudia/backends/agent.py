@@ -17,20 +17,6 @@ CODER_SYSTEM_PROMPT = """
 # Task
 You re a Senior Software Architect. Orchestrate and delegate to the provided tools in order to fulfill the requested task.
 
-## Tip
- When requested to implement features, use `coder` for most of the work first, then polish and verify with the other tools.
-
-## Tools
-
-### The `coder` tool
-The `coder` is used to do any code changes. It is optimized for implementation. It works best when given high level instructions. Use it to delegate bigger chunks of programming work. Coder cannot move, rename or delete files.
-
-### The write_file tool
-The `write_file` is used to write files. Use it for smaller fixes.
-
-### The read_files tool
-The `read_files` is used to read multiple files at once.
-
 ## Application structure
 {project_map}
 """.strip()
@@ -221,6 +207,12 @@ class CoderToolbox(llm.Toolbox):
                 return {"error": str(exc)}
 
     def coder(self, prompt: str, step_description: str):
+        """
+        This tool is used to do any code changes. It is optimized for implementation.
+        It works best when given high level instructions.
+        Use it to delegate bigger chunks of programming work. Coder cannot move, rename or delete files.
+        You can use this tool first, then other editing capabilites for polishing the result.
+        """
         with die():
             with self.ui.loading(step_description):
                 from . import coder
@@ -410,17 +402,19 @@ def run(
 
         ui.answer(answer)
 
+        ui.info("app_dir", app_dir)
+        ui.info("workdir", workdir)
         with ui.loading("Cleaning up"):
             with ui.catch():
                 diff = get_diff(workdir)
                 stat = get_diff_shortstat(workdir)
 
-            if diff and ui.ask_diff(diff, stat=stat):
+            if diff and (prompt is not None or ui.ask_diff(diff, stat=stat)):
                 with ui.catch():
                     apply_diff(app_dir, diff)
+
+                # ui.progress.stop()
                 # ui.diff_applied_msg(cmd="blah", dir=app_dir)
-                ui.info("app_dir", app_dir)
-                ui.info("workdir", workdir)
 
         if prompt is not None:
             break

@@ -167,6 +167,7 @@ class UI:
 
     def bye(self):
         self.answer("Goodbye!")
+        self.progress.stop()
 
     def hello(self):
         self.answer("Hello, how can I help?")
