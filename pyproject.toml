@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "llm>=0.31",
     "prompt-toolkit>=3.0.52",
+    "pytest>=9.0.3",
     "questionary>=2.1.1",
     "rich>=15.0.0",
 ]
