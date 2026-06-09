@@ -162,7 +162,7 @@ class BaseClaudia:
         self.model = model or self.get_model()
         self.loop = loop if loop is None else self.get_loop()
 
-        self._app_dir = None
+        self._app_dir = app_dir
 
     def get_app_dir(self):
         if self._app_dir is not None:

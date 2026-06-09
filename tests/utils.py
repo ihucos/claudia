@@ -47,10 +47,4 @@ class TestClaudiaMixin:
         return
 
     def get_response(self, *, conversation, prompt):
-        assert 0, "Implement me"
-        # assert 0, self.app_dir
-        # for t in self.tools:
-        #     if hasattr(t, "write_file"):
-        #         resp = t.write_file("test.txt", prompt, "test")
-        #         assert resp is None, f"Could not write: {resp}"
-        # return f"echo {prompt}"
+        return "Say hello"

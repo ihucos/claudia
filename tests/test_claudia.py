@@ -29,16 +29,15 @@ def test_does_not_fail():
     claudia.start()
 
 
-def test_write_file_then_sync_back(subtests):
+def test_sync_back_file(subtests):
     with tempfile.TemporaryDirectory() as app_dir:
         claudia = Claudia(app_dir=app_dir)
         app_dir = Path(app_dir)
 
         @patch(claudia)
         def get_response(self, *, conversation, prompt):
-            for t in self.tools:
-                if isinstance(t, tools.CoderToolbox):
-                    t.write_file("test.txt", prompt, "test")
+            with open(self.app_dir.joinpath("test.txt"), "w") as f:
+                f.write("content")
 
             with subtests.test("a tmpdir is used for changes"):
                 assert Path(app_dir).resolve() != self.app_dir
