@@ -25,11 +25,11 @@ class DisallowedFilenameError(Exception):
 class CoderToolbox(llm.Toolbox):
     def __init__(self, *, ui, workdir, model):
         self.ui = ui
-        self.workdir = workdir
+        self.workdir = Path(workdir).resolve()
         self.model = model
 
     def _check_filename(self, filename):
-        filename = (Path(self.workdir) / Path(self.workdir)).resolve()
+        filename = (Path(self.workdir) / filename).resolve()
         if not filename.is_relative_to(self.workdir):
             raise DisallowedFilenameError(f"Bad filename: {filename}")
 

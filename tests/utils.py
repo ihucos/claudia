@@ -47,4 +47,8 @@ class TestClaudiaMixin:
         return
 
     def get_response(self, *, conversation, prompt):
+        for t in self.tools:
+            if hasattr(t, "write_file"):
+                resp = t.write_file("test.txt", prompt, "test")
+                assert resp is None, f"Could not write: {resp}"
         return f"echo {prompt}"

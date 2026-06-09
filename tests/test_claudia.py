@@ -1,5 +1,6 @@
 from claudia import Claudia
 from .utils import TestClaudiaMixin
+import tempfile
 
 
 class Claudia(TestClaudiaMixin, Claudia):
@@ -7,5 +8,6 @@ class Claudia(TestClaudiaMixin, Claudia):
 
 
 def test_does_not_fail():
-    claudia = Claudia()
-    claudia.start()
+    with tempfile.TemporaryDirectory() as app_dir:
+        claudia = Claudia(app_dir=app_dir)
+        claudia.start()

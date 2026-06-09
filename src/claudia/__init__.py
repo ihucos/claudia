@@ -155,19 +155,18 @@ class ProjectCopyMixin:
 
 class BaseClaudia:
     def __init__(
-        self,
-        *,
-        system_prompt=None,
-        ui=None,
-        model=None,
-        loop=None,
+        self, *, system_prompt=None, ui=None, model=None, loop=None, app_dir=None
     ):
         self.system_prompt = system_prompt or self.get_system_prompt()
         self.ui = ui or self.get_ui()
         self.model = model or self.get_model()
         self.loop = loop if loop is None else self.get_loop()
 
+        self._app_dir = None
+
     def get_app_dir(self):
+        if self._app_dir is not None:
+            return self._app_dir
         return Path.cwd().resolve()
 
     def on_response(self, response):
