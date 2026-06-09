@@ -15,7 +15,7 @@ for i in range(30):
 
     @claudia.patch()
     def get_prompts(self):
-        return ['Find one thing adhering to the project philosophy you can improve, then improve it']
+        return ['Find one thing adhering to the project philosophy you can improve, then improve it. Maintainability, robustness and simplicity would be fine']
 
     @claudia.patch()
     def ask_diff(self, *args, **kwargs):
