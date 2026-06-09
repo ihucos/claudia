@@ -34,7 +34,7 @@ class DevBoxToolbox(llm.Toolbox):
         assert self.cmd("true", "Verify shell").endswith("[Exit status: 0]")
 
     def cmd(self, shell_cmd: str, step_description: str):
-        """Execute a shell command inside the persistent container."""
+        """Execute a shell command inside persistent, temporary container."""
         token = f"END_{uuid.uuid4().hex}"
 
         # Ship command + token logic to the persistent shell stdin
