@@ -188,7 +188,7 @@ class BaseClaudia:
         return self.loop
 
     def on_start(self):
-        self.app_dir = self.get_app_dir()
+        self.app_dir = Path(self.get_app_dir())
         self.tools = self.get_tools()
         self.ui.hello()
 

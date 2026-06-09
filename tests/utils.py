@@ -24,7 +24,7 @@ class MockUI:
         return "hello"
 
     def ask_diff(self, diff, stat=None):
-        return
+        return True
 
     def diff_applied_msg(self, cmd, dir):
         return
