@@ -5,6 +5,7 @@ from .ui import UI
 from .models import DeepSeekChat
 from pathlib import Path
 import tempfile
+from . import tools
 
 
 SYSTEM_PROMPT = """
@@ -26,39 +27,50 @@ class ClaudiaToolDebugMixin:
         super().after_call(tool, tool_call, tool_result)
 
 
-class ClaudiaToolsMxin:
+# class ClaudiaToolsMxin:
+#     def get_tools(self):
+#         devbox = DevBox(
+#             volume=self.app_dir,
+#             base_image="alpine",
+#         )
+#
+#         with self.ui.catch():
+#             with self.ui.loading("Checking if devbox exists"):
+#                 devbox_exists = devbox.exists()
+#             if not devbox_exists:
+#                 with self.ui.loading("Creating devbox"):
+#                     devbox.create()
+#             else:
+#                 with self.ui.loading("Starting devbox"):
+#                     devbox.start()
+#
+#             with self.ui.loading("Devbox health check"):
+#                 devbox.run("true").returncode == 0
+#
+#             asdf
+#             # return get_tools(workdir=workdir, devbox=devbox, ui=ui, model=model)
+#         tools = [tool1, tool2]
+#         tools.extend(super().get_tools())
+#         return tools
+
+
+class ClaudiaCoderToolsMixin:
     def get_tools(self):
-        devbox = DevBox(
-            volume=self.app_dir,
-            base_image="alpine",
-        )
-
-        with self.ui.catch():
-            with self.ui.loading("Checking if devbox exists"):
-                devbox_exists = devbox.exists()
-            if not devbox_exists:
-                with self.ui.loading("Creating devbox"):
-                    devbox.create()
-            else:
-                with self.ui.loading("Starting devbox"):
-                    devbox.start()
-
-            with self.ui.loading("Devbox health check"):
-                devbox.run("true").returncode == 0
-
-            asdf
-            # return get_tools(workdir=workdir, devbox=devbox, ui=ui, model=model)
-        tools = [tool1, tool2]
-        tools.extend(super().get_tools())
-        return tools
+        return [
+            tools.CoderToolbox(
+                ui=self.ui,
+                workdir=self.app_dir,
+                model=self.model,
+            )
+        ] + super().get_tools()
 
 
 class ProjectCopyMixin:
     # def get_app_dir(self):
     #     return self.copied_app_dir
 
-    def on_start(self):
-        self.real_app_dir = self.get_app_dir()
+    def get_app_dir(self):
+        self.real_app_dir = super().get_app_dir()
         self.copied_app_dir = tempfile.mkdtemp()
         with self.ui.catch(), self.ui.loading("Initializing workdir"):
             subprocess.run(
@@ -83,7 +95,7 @@ class ProjectCopyMixin:
                 check=True,
                 capture_output=True,
             )
-        super().on_start()
+        return self.copied_app_dir
 
     def ask_diff(self, diff, stat=None):
         return self.ui.ask_diff(diff, stat=stat)
@@ -142,10 +154,18 @@ class ProjectCopyMixin:
 
 
 class BaseClaudia:
-    def __init__(self, system_prompt=None, ui=None, model=None):
+    def __init__(
+        self,
+        *,
+        system_prompt=None,
+        ui=None,
+        model=None,
+        loop=None,
+    ):
         self.system_prompt = system_prompt or self.get_system_prompt()
         self.ui = ui or self.get_ui()
         self.model = model or self.get_model()
+        self.loop = loop if loop is None else self.get_loop()
 
     def get_app_dir(self):
         return Path.cwd().resolve()
@@ -165,7 +185,12 @@ class BaseClaudia:
     def ask_prompt(self):
         return self.ui.prompt()
 
+    def get_loop(self):
+        return self.loop
+
     def on_start(self):
+        self.app_dir = self.get_app_dir()
+        self.tools = self.get_tools()
         self.ui.hello()
 
     def on_stop(self):
@@ -177,10 +202,10 @@ class BaseClaudia:
     def get_conversation(self):
         return self.model.conversation()
 
-    def get_response(self, conversation, prompt):
+    def get_response(self, *, conversation, prompt):
         response = conversation.chain(
             prompt,
-            tools=self.get_tools(),
+            tools=self.tools,
             system=self.get_system_prompt(),
             before_call=self.before_call,
             after_call=self.after_call,
@@ -192,20 +217,28 @@ class BaseClaudia:
         conversation = self.get_conversation()
         while True:
             prompt = self.ask_prompt()
-            response = self.get_response(conversation, prompt)
+            response = self.get_response(conversation=conversation, prompt=prompt)
             self.on_response(response)
             self.after_response()
-            asdf
+            if not self.get_loop():
+                break
         self.on_stop()
+
+    def before_call(self, tool, tool_call):
+        return
+
+    def after_call(self, tool, tool_call, tool_result):
+        return
 
 
 class Claudia(
     ClaudiaToolDebugMixin,
-    ClaudiaToolsMxin,
+    # ClaudiaToolsMxin,
+    ClaudiaCoderToolsMixin,
     ProjectCopyMixin,
     BaseClaudia,
 ):
     pass
 
 
-Claudia().start()
+# Claudia().start()
