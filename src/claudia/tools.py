@@ -49,6 +49,8 @@ class CoderToolbox(llm.Toolbox):
 
     def read_files(self, filenames: list[str], step_description) -> dict[str, str]:
         with die(), self.ui.loading(step_description):
+            if not isinstance(filenames, list):
+                return {"error": "filenames must be a list"}
             files = {}
             for filename in filenames:
                 files[filename] = self._read_file(filename)

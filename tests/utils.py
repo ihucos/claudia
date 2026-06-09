@@ -34,17 +34,3 @@ class MockUI:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         return
-
-
-class TestClaudiaMixin:
-    def get_ui(self):
-        return MockUI()
-
-    def get_loop(self):
-        return False
-
-    def get_conversation(self):
-        return
-
-    def get_response(self, *, conversation, prompt):
-        return "Say hello"

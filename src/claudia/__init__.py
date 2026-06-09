@@ -187,7 +187,7 @@ class BaseClaudia:
     def get_loop(self):
         return self.loop
 
-    def on_start(self):
+    def warmup(self):
         self.app_dir = Path(self.get_app_dir())
         self.tools = self.get_tools()
         self.ui.hello()
@@ -201,8 +201,8 @@ class BaseClaudia:
     def get_conversation(self):
         return self.model.conversation()
 
-    def get_response(self, *, conversation, prompt):
-        response = conversation.chain(
+    def answer(self, prompt):
+        response = self.conversation.chain(
             prompt,
             tools=self.tools,
             system=self.get_system_prompt(),
@@ -212,11 +212,11 @@ class BaseClaudia:
         return response.text()
 
     def start(self):
-        self.on_start()
-        conversation = self.get_conversation()
+        self.warmup()
+        self.conversation = self.get_conversation()
         while True:
             prompt = self.ask_prompt()
-            response = self.get_response(conversation=conversation, prompt=prompt)
+            response = self.answer(prompt)
             self.on_response(response)
             self.after_response()
             if not self.get_loop():
