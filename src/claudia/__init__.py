@@ -155,12 +155,18 @@ class ProjectCopyMixin:
 
 class BaseClaudia:
     def __init__(
-        self, *, system_prompt=None, ui=None, model=None, loop=None, app_dir=None
+        self,
+        *,
+        system_prompt=None,
+        ui=None,
+        model=None,
+        loop=True,
+        app_dir=None,
     ):
         self.system_prompt = system_prompt or self.get_system_prompt()
         self.ui = ui or self.get_ui()
         self.model = model or self.get_model()
-        self.loop = loop if loop is None else self.get_loop()
+        self._loop = loop
 
         self._app_dir = app_dir
 
@@ -185,7 +191,7 @@ class BaseClaudia:
         return self.ui.prompt()
 
     def get_loop(self):
-        return self.loop
+        return self._loop
 
     def warmup(self):
         self.app_dir = Path(self.get_app_dir())
@@ -227,7 +233,12 @@ class BaseClaudia:
         self.on_stop()
 
     def before_call(self, tool, tool_call):
-        return
+        if tool.name[0].isupper():
+            name = tool.name.split("_", 1)[1]
+        else:
+            name = tool.name
+        descr = tool_call.arguments.get("step_description", "No description")
+        self.ui.loading(f"\\[{name}] {descr}")
 
     def after_call(self, tool, tool_call, tool_result):
         return
