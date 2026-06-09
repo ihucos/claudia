@@ -1,2 +1,2 @@
 from .coder import CoderToolbox
-from .devbox import DevBoxToolbox, DevBox
+from .devbox import DevBoxToolbox

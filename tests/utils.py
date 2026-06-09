@@ -1,4 +1,7 @@
 class MockUI:
+    def start(self):
+        return
+
     def catch(self):
         return self
 

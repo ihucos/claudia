@@ -41,20 +41,16 @@ class ClaudiaCoderToolMixin:
 class ClaudiaDevBoxToolMixin:
     def warmup(self):
         super().warmup()
-        self.devbox = tools.DevBox(
+        self.devbox = tools.DevBoxToolbox(
             volume=self.app_dir,
             base_image="alpine",
+            ui=self.ui,
         )
         with self.ui.loading("Starting devbox"):
             self.devbox.start_or_create()
 
     def get_tools(self):
-        return [
-            tools.DevBoxToolbox(
-                ui=self.ui,
-                devbox=self.devbox,
-            )
-        ] + super().get_tools()
+        return [self.devbox] + super().get_tools()
 
 
 class ProjectCopyMixin:
@@ -174,7 +170,7 @@ class BaseClaudia:
         return UI.from_env()
 
     def get_model(self):
-        return DeepSeekChat("deepseek-v4-flash")
+        return DeepSeekChat("deepseek-v4-pro")
 
     def get_system_prompt(self):
         return SYSTEM_PROMPT
