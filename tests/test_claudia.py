@@ -45,7 +45,6 @@ class MockUI:
         return "hello"
 
 
-# def test_simple():
-
-claudia = Claudia(ui=MockUI())
-claudia.run()
+def test_simple():
+    claudia = Claudia(ui=MockUI())
+    claudia.run()

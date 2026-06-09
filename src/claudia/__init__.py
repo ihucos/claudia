@@ -29,7 +29,7 @@ class ClaudiaToolDebugMixin:
 class ClaudiaToolsMxin:
     def get_tools(self):
         devbox = DevBox(
-            volume=self.copied_app_dir,
+            volume=self.app_dir,
             base_image="alpine",
         )
 
@@ -54,6 +54,9 @@ class ClaudiaToolsMxin:
 
 
 class ProjectCopyMixin:
+    # def get_app_dir(self):
+    #     return self.copied_app_dir
+
     def on_start(self):
         self.real_app_dir = self.get_app_dir()
         self.copied_app_dir = tempfile.mkdtemp()
@@ -135,7 +138,10 @@ class ProjectCopyMixin:
         )
 
 
-class Claudia(ClaudiaToolDebugMixin, ClaudiaToolsMxin, ProjectCopyMixin):
+# class BaseClaudia:
+
+
+class BaseClaudia:
     def __init__(self, system_prompt=None, ui=None, model=None):
         self.system_prompt = system_prompt or self.get_system_prompt()
         self.ui = ui or self.get_ui()
@@ -181,7 +187,7 @@ class Claudia(ClaudiaToolDebugMixin, ClaudiaToolsMxin, ProjectCopyMixin):
         )
         return response.text()
 
-    def run(self):
+    def start(self):
         self.on_start()
         conversation = self.get_conversation()
         while True:
@@ -189,4 +195,17 @@ class Claudia(ClaudiaToolDebugMixin, ClaudiaToolsMxin, ProjectCopyMixin):
             response = self.get_response(conversation, prompt)
             self.on_response(response)
             self.after_response()
+            asdf
         self.on_stop()
+
+
+class Claudia(
+    ClaudiaToolDebugMixin,
+    ClaudiaToolsMxin,
+    ProjectCopyMixin,
+    BaseClaudia,
+):
+    pass
+
+
+Claudia().start()
