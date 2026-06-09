@@ -31,33 +31,26 @@ class DevBoxToolbox(llm.Toolbox):
         )
 
         # Verify the container shell is responsive
-        proc = self.cmd("true", "Verify shell")
-        assert proc["exit_status"] == 0, proc
+        assert self.cmd("true", "Verify shell").endswith("[Exit status: 0]")
 
     def cmd(self, shell_cmd: str, step_description: str):
         """Execute a shell command inside the persistent container."""
         token = f"END_{uuid.uuid4().hex}"
 
         # Ship command + token logic to the persistent shell stdin
-        full_cmd = f"{shell_cmd}\ntrue; echo '\n{token}'; echo $?\n"
+        full_cmd = f"""{shell_cmd}; echo "[Exit status: $?]{token}"\n"""
         self._shell.stdin.write(full_cmd)
         self._shell.stdin.flush()
 
         # Read stream character by character until token arrives
         output = ""
         while token not in output:
-            char = self._shell.stdout.read(1)
-            if not char:
+            if not (char := self._shell.stdout.read(1)):
                 break
             output += char
 
-        # Split output from trailing return code
-        assert 0, token
-        clean_stdout, trailing = output.split(token)
-
-        out = clean_stdout.rstrip("\r\n")
-        exit_status = int(trailing.strip())
-        return f"{out}\nExit status: {exit_status}"
+        out, _ = output.split(token)
+        return out
 
     def __del__(self):
         """Clean up and tear down the container when the toolbox is dropped."""

@@ -41,13 +41,12 @@ class ClaudiaCoderToolMixin:
 class ClaudiaDevBoxToolMixin:
     def warmup(self):
         super().warmup()
-        self.devbox = tools.DevBoxToolbox(
-            volume=self.app_dir,
-            base_image="alpine",
-            ui=self.ui,
-        )
         with self.ui.loading("Starting devbox"):
-            self.devbox.start_or_create()
+            self.devbox = tools.DevBoxToolbox(
+                volume=self.app_dir,
+                base_image="alpine",
+                ui=self.ui,
+            )
 
     def get_tools(self):
         return [self.devbox] + super().get_tools()
