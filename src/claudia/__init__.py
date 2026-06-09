@@ -45,7 +45,8 @@ class ClaudiaDevBoxToolMixin:
             volume=self.app_dir,
             base_image="alpine",
         )
-        self.devbox.start_or_create()
+        with self.ui.loading("Starting devbox"):
+            self.devbox.start_or_create()
 
     def get_tools(self):
         return [
@@ -63,7 +64,7 @@ class ProjectCopyMixin:
     def get_app_dir(self):
         self.real_app_dir = super().get_app_dir()
         self.copied_app_dir = tempfile.mkdtemp()
-        with self.ui.catch(), self.ui.loading("Initializing workdir"):
+        with self.ui.catch(), self.ui.loading("Syncing dir"):
             subprocess.run(
                 [
                     "rsync",
@@ -208,6 +209,7 @@ class BaseClaudia:
 
     def start(self):
         try:
+            self.ui.start()
             self.warmup()
             self.tools = self.get_tools()
             self.conversation = self.get_conversation()

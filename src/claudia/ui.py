@@ -74,9 +74,8 @@ class UI:
         self.history = FileHistory(history_file)
         self._debug = debug
 
-    def __enter__(self):
+    def start(self):
         self.progress.start()
-        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
