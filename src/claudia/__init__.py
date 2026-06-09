@@ -1,11 +1,11 @@
-import subprocess
-import os
-from .devbox import DevBox
-from .ui import UI
-from .models import DeepSeekChat
 from pathlib import Path
+import subprocess
 import tempfile
+import sys
+
 from . import tools
+from .models import DeepSeekChat
+from .ui import UI
 
 
 SYSTEM_PROMPT = """
@@ -212,15 +212,18 @@ class BaseClaudia:
         return response.text()
 
     def start(self):
-        self.warmup()
-        self.conversation = self.get_conversation()
-        while True:
-            prompt = self.ask_prompt()
-            response = self.answer(prompt)
-            self.on_response(response)
-            self.after_response()
-            if not self.get_loop():
-                break
+        try:
+            self.warmup()
+            self.conversation = self.get_conversation()
+            while True:
+                prompt = self.ask_prompt()
+                response = self.answer(prompt)
+                self.on_response(response)
+                self.after_response()
+                if not self.get_loop():
+                    break
+        except KeyboardInterrupt:
+            pass
         self.on_stop()
 
     def before_call(self, tool, tool_call):
@@ -240,4 +243,5 @@ class Claudia(
     pass
 
 
-# Claudia().start()
+def main():
+    Claudia().start()

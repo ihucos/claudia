@@ -1,14 +1,6 @@
-"""Tests for CoderToolbox file operations.
-
-The most important property here is the sandbox: the model must never be
-able to read or write outside its working directory via "../" escapes.
-"""
-
-import pytest
-
-from claudia import tools
-
 from .utils import MockUI
+from claudia import tools
+import pytest
 
 
 @pytest.fixture

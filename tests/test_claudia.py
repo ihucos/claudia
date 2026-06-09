@@ -71,26 +71,3 @@ def test_sync_back_file(subtests):
 
         with subtests.test("File is written at main app dir"):
             assert app_dir.joinpath("test.txt").exists()
-
-
-def test_coder_toolbox(subtests):
-    claudia = Claudia()
-    claudia.warmup()
-    tool = None
-    for tool in claudia.tools:
-        if isinstance(tool, tools.CoderToolbox):
-            break
-
-    with subtests.test("can write file"):
-        assert tool.write_file("test.txt", "content", "step description") is None
-        assert claudia.app_dir.joinpath("test.txt").exists(), (
-            "Written does not file exist"
-        )
-
-    with subtests.test("read files"):
-        assert tool.read_files(["test.txt"], "step description") == {
-            "test.txt": "content"
-        }
-        assert tool.read_files("test.txt", "step description") == {
-            "error": "filenames must be a list"
-        }
