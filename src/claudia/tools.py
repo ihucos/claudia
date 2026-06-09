@@ -9,6 +9,16 @@ import traceback
 from functools import wraps
 
 
+@contextmanager
+def die():
+    try:
+        yield
+    except Exception:
+        # Handle the exception exactly like your decorator did
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
+
+
 class DisallowedFilenameError(Exception):
     pass
 
@@ -132,11 +142,10 @@ class RunnerToolbox(llm.Toolbox):
         assert proc["exit_status"] == 0, proc
 
     def cmd(self, shell_cmd, step_description):
-        with die():
-            with self.ui.loading(step_description):
-                proc = self.devbox.run(["/bin/sh", "-c", shell_cmd])
-                return {
-                    "stdout": proc.stdout,
-                    "stderr": proc.stderr,
-                    "exit_status": proc.returncode,
-                }
+        with self.ui.loading(step_description):
+            proc = self.devbox.run(["/bin/sh", "-c", shell_cmd])
+            return {
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+                "exit_status": proc.returncode,
+            }
