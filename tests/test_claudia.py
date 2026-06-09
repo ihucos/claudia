@@ -4,7 +4,6 @@ import tempfile
 from .utils import MockUI
 
 from claudia import Claudia
-from claudia import tools
 
 
 from functools import wraps
@@ -14,20 +13,8 @@ class Claudia(Claudia):
     def get_ui(self):
         return MockUI()
 
-    def get_loop(self):
-        return False
-
-    def patch(self):
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                return func(self, *args, **kwargs)
-
-            setattr(self, func.__name__, wrapper)
-
-            return wrapper
-
-        return decorator
+    def get_prompts(self):
+        return ["Hello"]
 
 
 def test_does_not_fail():
@@ -38,8 +25,8 @@ def test_does_not_fail():
         return []
 
     @claudia.patch()
-    def ask_prompt(self):
-        return r'Emit "hi123"'
+    def get_prompts(self):
+        return ['Emit "hi123"']
 
     @claudia.patch()
     def on_response(self, prompt):

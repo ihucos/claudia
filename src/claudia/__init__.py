@@ -6,6 +6,7 @@ import sys
 from . import tools
 from .models import DeepSeekChat
 from .ui import UI
+from functools import wraps
 
 
 SYSTEM_PROMPT = """
@@ -15,6 +16,24 @@ You re a Senior Software Architect. Use the provided tools in order to fulfill t
 ## Application structure
 {project_map}
 """.strip()
+
+
+class ClaudiaPatchMixin:
+    def patch(self):
+        """
+        Utility decorator for hacking
+        """
+
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(self, *args, **kwargs)
+
+            setattr(self, func.__name__, wrapper)
+
+            return wrapper
+
+        return decorator
 
 
 class ClaudiaToolDebugMixin:
@@ -52,7 +71,7 @@ class ClaudiaDevBoxToolMixin:
         return [self.devbox] + super().get_tools()
 
 
-class ProjectCopyMixin:
+class ClaudiaProjectCopyMixin:
     # def get_app_dir(self):
     #     return self.copied_app_dir
 
@@ -147,14 +166,11 @@ class BaseClaudia:
         system_prompt=None,
         ui=None,
         model=None,
-        loop=True,
         app_dir=None,
     ):
         self.system_prompt = system_prompt or self.get_system_prompt()
         self.ui = ui or self.get_ui()
         self.model = model or self.get_model()
-        self._loop = loop
-
         self._app_dir = app_dir
 
     def get_app_dir(self):
@@ -169,16 +185,14 @@ class BaseClaudia:
         return UI.from_env()
 
     def get_model(self):
-        return DeepSeekChat("deepseek-v4-pro")
+        return DeepSeekChat("deepseek-v4-flash")
 
     def get_system_prompt(self):
         return SYSTEM_PROMPT
 
-    def ask_prompt(self):
-        return self.ui.prompt()
-
-    def get_loop(self):
-        return self._loop
+    def get_prompts(self):
+        while True:
+            yield self.ui.prompt()
 
     def warmup(self):
         self.app_dir = Path(self.get_app_dir())
@@ -209,13 +223,10 @@ class BaseClaudia:
             self.tools = self.get_tools()
             self.conversation = self.get_conversation()
             self.ui.hello()
-            while True:
-                prompt = self.ask_prompt()
+            for prompt in self.get_prompts():
                 response = self.answer(prompt)
                 self.on_response(response)
                 self.after_response()
-                if not self.get_loop():
-                    break
         except KeyboardInterrupt:
             pass
         self.on_stop()
@@ -236,7 +247,8 @@ class Claudia(
     ClaudiaToolDebugMixin,
     ClaudiaDevBoxToolMixin,
     ClaudiaCoderToolMixin,
-    ProjectCopyMixin,
+    ClaudiaProjectCopyMixin,
+    ClaudiaPatchMixin,
     BaseClaudia,
 ):
     pass

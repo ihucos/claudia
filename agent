@@ -1,0 +1,23 @@
+#!/usr/bin/env uv run --script
+# /// script
+# dependencies = [
+#     "claudia-agent",
+# ]
+# [tool.uv.sources]
+# claudia-agent = { path = "/Users/ihucos/claudia" }
+# ///
+
+from claudia import Claudia
+
+
+claudia = Claudia()
+
+@claudia.patch()
+def get_prompts(self):
+    return ['Find one thing adhering to the project philosophy you can improve, then improve it']
+
+@claudia.patch()
+def ask_diff(self, *args, **kwargs):
+    return True 
+
+claudia.start()
