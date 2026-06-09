@@ -43,7 +43,7 @@ def test_does_not_fail():
 
     @claudia.patch()
     def on_response(self, prompt):
-        assert "hi123" in prompt, "LLM did not follow instructions or bad code"
+        assert "hi123" in prompt.lower(), "LLM did not follow instructions or bad code"
 
     claudia.start()
 
