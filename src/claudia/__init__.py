@@ -1,9 +1,9 @@
 from pathlib import Path
 import subprocess
 import tempfile
-import sys
 
 from . import tools
+from . import utils
 from .models import DeepSeekChat
 from .ui import UI
 from functools import wraps
@@ -188,7 +188,7 @@ class BaseClaudia:
         return DeepSeekChat("deepseek-v4-flash")
 
     def get_system_prompt(self):
-        return SYSTEM_PROMPT
+        return SYSTEM_PROMPT.format(project_map=utils.get_project_map())
 
     def get_prompts(self):
         while True:

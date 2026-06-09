@@ -10,14 +10,15 @@
 from claudia import Claudia
 
 
-claudia = Claudia()
+for i in range(30):
+    claudia = Claudia()
 
-@claudia.patch()
-def get_prompts(self):
-    return ['Find one thing adhering to the project philosophy you can improve, then improve it']
+    @claudia.patch()
+    def get_prompts(self):
+        return ['Find one thing adhering to the project philosophy you can improve, then improve it']
 
-@claudia.patch()
-def ask_diff(self, *args, **kwargs):
-    return True 
+    @claudia.patch()
+    def ask_diff(self, *args, **kwargs):
+        return True 
 
-claudia.start()
+    claudia.start()
