@@ -27,40 +27,31 @@ class ClaudiaToolDebugMixin:
         super().after_call(tool, tool_call, tool_result)
 
 
-# class ClaudiaToolsMxin:
-#     def get_tools(self):
-#         devbox = DevBox(
-#             volume=self.app_dir,
-#             base_image="alpine",
-#         )
-#
-#         with self.ui.catch():
-#             with self.ui.loading("Checking if devbox exists"):
-#                 devbox_exists = devbox.exists()
-#             if not devbox_exists:
-#                 with self.ui.loading("Creating devbox"):
-#                     devbox.create()
-#             else:
-#                 with self.ui.loading("Starting devbox"):
-#                     devbox.start()
-#
-#             with self.ui.loading("Devbox health check"):
-#                 devbox.run("true").returncode == 0
-#
-#             asdf
-#             # return get_tools(workdir=workdir, devbox=devbox, ui=ui, model=model)
-#         tools = [tool1, tool2]
-#         tools.extend(super().get_tools())
-#         return tools
-
-
-class ClaudiaCoderToolsMixin:
+class ClaudiaCoderToolMixin:
     def get_tools(self):
         return [
             tools.CoderToolbox(
                 ui=self.ui,
                 workdir=self.app_dir,
                 model=self.model,
+            )
+        ] + super().get_tools()
+
+
+class ClaudiaDevBoxToolMixin:
+    def warmup(self):
+        super().warmup()
+        self.devbox = tools.DevBox(
+            volume=self.app_dir,
+            base_image="alpine",
+        )
+        self.devbox.start_or_create()
+
+    def get_tools(self):
+        return [
+            tools.DevBoxToolbox(
+                ui=self.ui,
+                devbox=self.devbox,
             )
         ] + super().get_tools()
 
@@ -195,8 +186,6 @@ class BaseClaudia:
 
     def warmup(self):
         self.app_dir = Path(self.get_app_dir())
-        self.tools = self.get_tools()
-        self.ui.hello()
 
     def on_stop(self):
         self.ui.bye()
@@ -220,7 +209,9 @@ class BaseClaudia:
     def start(self):
         try:
             self.warmup()
+            self.tools = self.get_tools()
             self.conversation = self.get_conversation()
+            self.ui.hello()
             while True:
                 prompt = self.ask_prompt()
                 response = self.answer(prompt)
@@ -246,8 +237,8 @@ class BaseClaudia:
 
 class Claudia(
     ClaudiaToolDebugMixin,
-    # ClaudiaToolsMxin,
-    ClaudiaCoderToolsMixin,
+    ClaudiaDevBoxToolMixin,
+    ClaudiaCoderToolMixin,
     ProjectCopyMixin,
     BaseClaudia,
 ):

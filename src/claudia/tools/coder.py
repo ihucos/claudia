@@ -131,21 +131,3 @@ class CoderToolbox(llm.Toolbox):
     #                 ret += f" Errors: {', '.join(errors.keys())}"
     #             return ret
 
-
-class RunnerToolbox(llm.Toolbox):
-    def __init__(self, *, ui, workdir, devbox):
-        self.ui = ui
-        self.workdir = workdir
-        self.devbox = devbox
-        # Sanity check
-        proc = self.cmd("true", "Test cmd")
-        assert proc["exit_status"] == 0, proc
-
-    def cmd(self, shell_cmd, step_description):
-        with self.ui.loading(step_description):
-            proc = self.devbox.run(["/bin/sh", "-c", shell_cmd])
-            return {
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
-                "exit_status": proc.returncode,
-            }
