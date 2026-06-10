@@ -5,7 +5,7 @@ import pytest
 
 @pytest.fixture
 def toolbox(tmp_path):
-    return tools.CoderToolbox(ui=MockUI(), workdir=tmp_path, model=None)
+    return tools.CoderToolbox(ui=MockUI(), workdir=tmp_path)
 
 
 def test_write_then_read(toolbox, tmp_path):
